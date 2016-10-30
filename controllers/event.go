@@ -67,10 +67,106 @@ func (c *MainController) NewEvent() {
 					flash.Store(&c.Controller)
 					return
 				}
+			} else {
+				return
 			}
 		}
 	}
 	c.Redirect("/home", 302)
+}
+
+func (c *MainController) EditEvent() {
+	c.activeContent("events/edit")
+	flash := beego.NewFlash()
+	sess := c.GetSession("activist")
+	if sess != nil {
+		m := sess.(map[string]interface{})
+		var org int64
+		org = 2
+		if m["group"] == org {
+			eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+		    if err != nil {
+		        log.Println("EditEvent: ", err)
+		        c.Abort("401")
+		    }
+
+			o := orm.NewOrm()
+
+			event := models.Event{Id: eventId}
+			err = o.Read(&event)
+
+			if err == orm.ErrNoRows {
+			    log.Println("No result found.")
+			    c.Abort("404")
+			} else if err == orm.ErrMissPK {
+			    log.Println("No primary key found.")
+			    c.Abort("404")
+			} else {
+			    log.Println(event)
+			    if event.UserId != m["id"].(int64) {
+			    	c.Abort("403")
+			    }
+			    if c.Ctx.Input.Method() == "GET" {
+				    c.Data["Name"] = event.Name
+					c.Data["Description"] = event.Description
+					c.Data["EventDate"] = event.EventDate.Format("2006-01-02")
+					if event.EventTime.IsZero() {
+						c.Data["EventTime"] = ""
+						} else {
+						c.Data["EventTime"] = event.EventTime.Format("15:04")
+						}
+				} else if c.Ctx.Input.Method() == "POST" {
+					name := c.Input().Get("event-name")
+					description := c.Input().Get("description")
+					eventDate, err := time.Parse("2006-01-02", c.Input().Get("event-date"))
+					if err != nil {
+						log.Println("NewEvent, eventDate: ", err)
+						flash.Error("Wrong date.")
+						flash.Store(&c.Controller)
+						return
+					}
+					eventTime, err := time.Parse("15:04", c.Input().Get("event-time"))
+					if err != nil {
+						log.Println("NewEvent, eventTime: ", err)
+					}
+
+					log.Println("name: " + name)
+					log.Println("description: " + description)
+					log.Println("eventDate: " + eventDate.Format("2006-01-02"))
+					log.Println("eventTime: " + eventTime.Format("2006-01-02 15:04:05"))
+
+					valid := validation.Validation{}
+					valid.MaxSize(name, 120, "name")
+					valid.Required(name, "name")
+					valid.Required(eventDate, "event-date")
+
+					if valid.HasErrors() {
+						errormap := []string{}
+						log.Println("EditEvent: Validation error(s)")
+						for _, err := range valid.Errors {
+							errormap = append(errormap, "Validation failed on "+err.Key+": "+err.Message+"\n")
+						}
+						c.Data["Errors"] = errormap
+						return
+					}
+
+					event.Name = name
+					event.Description = description
+					event.EventDate = eventDate
+					event.EventTime = eventTime
+					if _, err := o.Update(&event); err != nil {
+				        log.Println("EditEvent< data update: ", err)
+				        flash.Error("The data wasn't updated.")
+						flash.Store(&c.Controller)
+						return
+				    }
+				    c.Redirect("/profile", 302)
+				}
+			}
+			return
+		}
+	}
+	c.Redirect("/profile", 302)
 }
 
 func (c *MainController) JoinEvent() {

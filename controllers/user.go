@@ -74,6 +74,10 @@ func (c *MainController) Login() {
 		m["email"] = user.Email
 		m["group"] = user.UserGroup
 		m["timestamp"] = time.Now()
+		m["first_name"] = user.FirstName
+		m["second_name"] = user.SecondName
+		m["last_name"] = user.LastName
+		m["gender"] = user.Gender 
 		c.SetSession("activist", m)
 		c.Redirect("/"+back, 302)
 		
@@ -117,6 +121,15 @@ func (c *MainController) Register() {
 			flash.Store(&c.Controller)
 			return
 		}
+		firstName := c.Input().Get("first_name")
+		secondName := c.Input().Get("second_name")
+		lastName := c.Input().Get("last_name")
+		gender, err := strconv.ParseInt(c.Input().Get("gender"), 10 , 64)
+		if err != nil {
+			flash.Error("Wrong gender")
+			flash.Store(&c.Controller)
+			return
+		}
 
 		valid := validation.Validation{}
 		valid.Email(email, "email")
@@ -124,6 +137,14 @@ func (c *MainController) Register() {
 		valid.Required(password, "password")
 		valid.Required(password2, "password2")
 		valid.Required(group, "group")
+		valid.Required(firstName, "first_name")
+		valid.Required(secondName, "second_name")
+		valid.Required(lastName, "last_name")
+		valid.Required(gender, "gender")
+		valid.MaxSize(email, 30, "email")
+		valid.MaxSize(firstName, 25, "first_name")
+		valid.MaxSize(secondName, 25, "second_name")
+		valid.MaxSize(lastName, 25, "last_name")
 
 		if valid.HasErrors() {
 			errormap := []string{}
@@ -146,7 +167,7 @@ func (c *MainController) Register() {
 		o := orm.NewOrm()
 	    
 
-	    user := models.User{Email: email, UserGroup: group}
+	    user := models.User{Email: email, UserGroup: group, FirstName: firstName, SecondName: secondName, LastName: lastName, Gender: gender}
 
 		// Convert password hash to string
 		user.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)

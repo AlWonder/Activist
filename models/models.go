@@ -81,10 +81,14 @@ func (t *TagStatus) TableName() string {
 }
 
 type User struct {
-	Id 			int64   `orm:"column(id)" form:"-" json:"id"`
-	Email		string	`orm:"column(email);size(30);unique" form:"email,text,email:" json:"email"`
-	Password	string	`orm:"column(password);size(128)" form:"password,password,password:" json:"password"`
-	UserGroup	int64	`orm:"column(user_group);default(1)" form:"user_group,text,user_group:" json:"user_group"`
+	Id 			int64   `orm:"column(id)" json:"id"`
+	Email		string	`orm:"column(email);size(30);unique" json:"email"`
+	Password	string	`orm:"column(password);size(128)" json:"password"`
+	UserGroup	int64	`orm:"column(user_group);default(1)" json:"user_group"`
+	FirstName	string	`orm:"column(first_name);size(25)" json:"first_name"`
+	SecondName	string	`orm:"column(second_name);size(25)" json:"second_name"`
+	LastName	string	`orm:"column(last_name);size(25)" json:"last_name"`
+	Gender		int64	`orm:"column(gender);default(0)" json:"gender"` //0 - unknown, 1 - male, 2 - female
 }
 
 func (u *User) TableName() string {

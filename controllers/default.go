@@ -54,6 +54,10 @@ func (c *MainController) activeContent(view string) {
         m := sess.(map[string]interface{})
         c.Data["Email"] = m["email"]
         c.Data["Group"] = m["group"]
+        c.Data["FirstName"] = m["first_name"]
+        c.Data["SecondName"] = m["second_name"]
+        c.Data["LastName"] = m["last_name"]
+        c.Data["Gender"] = m["gender"]
     }
 }
 
