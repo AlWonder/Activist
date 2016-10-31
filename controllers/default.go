@@ -77,4 +77,23 @@ func (c *MainController) ViewEvent() {
     }
 }
 
+func (c *MainController) ViewParticipants() {
+    c.activeContent("events/participants")
+    sess := c.GetSession("activist")
+    if sess != nil {
+        id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+        if err != nil {
+            log.Fatal(err)
+            return
+        }
+        m := sess.(map[string]interface{})
+        if c.belongsTo(id, m["id"].(int64)) {
+            users := c.getParticipants(id)
+            c.Data["Participants"] = users
+            return
+        }
+    } 
+    c.Redirect("/home", 302)
+}
+
 

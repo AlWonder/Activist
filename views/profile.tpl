@@ -42,6 +42,7 @@
 		<h3>{{$val.Name}}</h3>
 		<p>{{html2str $val.Description}}</p>
 		<p>Дата проведения: {{dateformat $val.EventDate "2006-01-02"}} {{if $val.EventTime | iszero | not}}{{dateformat $val.EventTime "15:04"}}{{end}}</p>
+		<p><a href="http://localhost:8080/events/participants/{{$val.Id}}">Участники</a></p>
 		<a href="http://localhost:8080/events/edit/{{$val.Id}}">Редактировать</a> | 
 		<a href="http://localhost:8080/events/delete/{{$val.Id}}">Удалить</a>
 	{{end}}

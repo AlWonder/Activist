@@ -320,11 +320,27 @@ func (c *MainController) getAcceptedEvents(user int64, limit int) *[]models.Even
 		WHERE users.id = ? AND agree = 1
 		LIMIT ?, 10`, user, limit).QueryRows(&events)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("getAcceptedEvents: ", err)
 		return nil
 	}
 	log.Println(events)
 	return &events
+}
+
+func (c *MainController) getParticipants(eventId int64) *[]models.User {
+	var users []models.User
+
+	o := orm.NewOrm()
+
+	_, err := o.Raw(`SELECT users.*
+		FROM users INNER JOIN (users_events INNER JOIN events ON events.id = users_events.event_id) ON users.id = users_events.user_id
+		WHERE events.id = ? AND agree = 1`, eventId).QueryRows(&users)
+	if err != nil {
+		log.Println("getParticipants: ", err)
+		return nil
+	}
+	log.Println(users)
+	return &users
 }
 
 func (c *MainController) isJoined(user, event int64) bool {

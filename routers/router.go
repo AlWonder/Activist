@@ -15,6 +15,7 @@ func init() {
     beego.Router("/events/edit/:id([0-9]+)", &controllers.MainController{}, "get,post:EditEvent")
     beego.Router("/events/view/:id([0-9]+)", &controllers.MainController{}, "get:ViewEvent")
     beego.Router("/events/join/:id([0-9]+)", &controllers.MainController{}, "get:JoinEvent")
+    beego.Router("/events/participants/:id([0-9]+)", &controllers.MainController{}, "get:ViewParticipants")
     beego.Router("/events/delete/:id([0-9]+)", &controllers.MainController{}, "get:DeleteEvent")
     beego.Router("/events/deny/:id([0-9]+)", &controllers.MainController{}, "get:DenyEvent")
     beego.Router("/profile", &controllers.MainController{}, "get:Profile")
