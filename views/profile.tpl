@@ -20,6 +20,8 @@
 Администратор
 {{end}}</p>
 
+<a href="http://localhost:8080/profile/changepwd">Сменить пароль</a>
+
 {{if eq .Group 1}}
 
 	<h2>Где я участвую</h2>

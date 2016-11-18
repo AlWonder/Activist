@@ -19,4 +19,5 @@ func init() {
     beego.Router("/events/delete/:id([0-9]+)", &controllers.MainController{}, "get:DeleteEvent")
     beego.Router("/events/deny/:id([0-9]+)", &controllers.MainController{}, "get:DenyEvent")
     beego.Router("/profile", &controllers.MainController{}, "get:Profile")
+    beego.Router("/profile/changepwd", &controllers.MainController{}, "get,post:NewPassword")
 }

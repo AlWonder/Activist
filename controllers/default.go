@@ -21,21 +21,20 @@ func (c *MainController) Get() {
 func (c *MainController) Profile() {
     c.activeContent("profile")
     sess := c.GetSession("activist")
-    if sess != nil {
-        m := sess.(map[string]interface{})
-        userId := m["id"].(int64)
-        log.Println(m["group"].(int64))
-        if m["group"].(int64) == 1 {
-            events := c.getAcceptedEvents(userId, 0)
-            log.Println(events)
-            c.Data["Events"] = events
-        } else if m["group"].(int64) == 2 {
-            events := c.getEvents(userId)
-            c.Data["Events"] = events
-        }
-    } else {
+    if sess == nil {
         c.Redirect("/home", 302)
     }
+    m := sess.(map[string]interface{})
+    userId := m["id"].(int64)
+    log.Println(m["group"].(int64))
+    if m["group"].(int64) == 1 {
+        events := c.getAcceptedEvents(userId, 0)
+        log.Println(events)
+        c.Data["Events"] = events
+    } else if m["group"].(int64) == 2 {
+        events := c.getEvents(userId)
+        c.Data["Events"] = events
+    }    
 }
 
 func (c *MainController) ToHome() {
@@ -80,20 +79,19 @@ func (c *MainController) ViewEvent() {
 func (c *MainController) ViewParticipants() {
     c.activeContent("events/participants")
     sess := c.GetSession("activist")
-    if sess != nil {
-        id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-        if err != nil {
-            log.Fatal(err)
-            return
-        }
-        m := sess.(map[string]interface{})
-        if c.belongsTo(id, m["id"].(int64)) {
-            users := c.getParticipants(id)
-            c.Data["Participants"] = users
-            return
-        }
+    if sess == nil {
+        c.Redirect("/home", 302)
+    }
+    id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+    if err != nil {
+        log.Fatal(err)
+        return
+    }
+    m := sess.(map[string]interface{})
+    if c.belongsTo(id, m["id"].(int64)) {
+        participants := c.getParticipants(id)
+        c.Data["Participants"] = participants
     } 
-    c.Redirect("/home", 302)
 }
 
 
