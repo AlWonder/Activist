@@ -11,7 +11,7 @@ import (
 )
 
 func (c *MainController) NewEvent() {
-	c.activeContent("events/new")
+	c.activeContent("events/new", "Новое событие")
 	flash := beego.NewFlash()
 	sess := c.GetSession("activist")
 	if sess == nil {
@@ -80,7 +80,7 @@ func (c *MainController) NewEvent() {
 }
 
 func (c *MainController) EditEvent() {
-	c.activeContent("events/edit")
+	c.activeContent("events/edit", "Изменить событие")
 	flash := beego.NewFlash()
 	sess := c.GetSession("activist")
 	if sess == nil {
@@ -177,7 +177,7 @@ func (c *MainController) EditEvent() {
 }
 
 func (c *MainController) JoinEvent() {
-	c.activeContent("events/join")
+	c.activeContent("events/join", "")
 	sess := c.GetSession("activist")
 	if sess != nil {
 		c.Redirect("/home", 302)

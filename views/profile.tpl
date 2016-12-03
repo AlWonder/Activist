@@ -1,3 +1,4 @@
+<section class="profile">
 <h1>Мой профиль</h1>
 <p>E-Mail: {{.Email}}</p>
 <p>{{.FirstName}} {{.SecondName}} {{.LastName}}</p>
@@ -22,30 +23,39 @@
 
 <a href="http://localhost:8080/profile/changepwd">Сменить пароль</a>
 
+</section>
+
 {{if eq .Group 1}}
-
+	<section class="where-do-i-participate">
 	<h2>Где я участвую</h2>
-
-	{{range $val := .Events}}
-		<h3>{{$val.Name}}</h3>
-		<p>{{html2str $val.Description}}</p>
-		<p>Дата проведения: {{dateformat $val.EventDate "2006-01-02"}} {{if $val.EventTime | iszero | not}}{{dateformat $val.EventTime "15:04"}}{{end}}</p>
-		<a href="http://localhost:8080/events/deny/{{$val.Id}}">Больше не хочу участвовать</a>
-	{{end}}
+		<article class="event-full">
+		{{range $val := .Events}}
+			<h3>{{$val.Name}}</h3>
+			<p class="description">{{html2str $val.Description}}</p>
+			<p class="event-date">Дата проведения: {{dateformat $val.EventDate "2006-01-02"}} {{if $val.EventTime | iszero | not}}{{dateformat $val.EventTime "15:04"}}{{end}}</p>
+			<a class="deny" href="http://localhost:8080/events/deny/{{$val.Id}}">Больше не хочу участвовать</a>
+		{{end}}
+		</article>
+	</section>
 {{end}}
 
 {{if eq .Group 2}}
-
+	<section class="my-events">
 	<h2>Мои мероприятия</h2>
 
-	<a href="/events/new">Новое мероприятие</a>
+	<a class="new-event" href="/events/new">Новое мероприятие</a>
 
 	{{range $val := .Events}}
+	<article class="event-full">
 		<h3>{{$val.Name}}</h3>
-		<p>{{html2str $val.Description}}</p>
-		<p>Дата проведения: {{dateformat $val.EventDate "2006-01-02"}} {{if $val.EventTime | iszero | not}}{{dateformat $val.EventTime "15:04"}}{{end}}</p>
-		<p><a href="http://localhost:8080/events/participants/{{$val.Id}}">Участники</a></p>
-		<a href="http://localhost:8080/events/edit/{{$val.Id}}">Редактировать</a> | 
-		<a href="http://localhost:8080/events/delete/{{$val.Id}}">Удалить</a>
+		<p class="description">{{html2str $val.Description}}</p>
+		<p class="event-date">Дата проведения: {{dateformat $val.EventDate "2006-01-02"}} {{if $val.EventTime | iszero | not}}{{dateformat $val.EventTime "15:04"}}{{end}}</p>
+		<div class="event-control">
+			<p><a class="show-participants" href="http://localhost:8080/events/participants/{{$val.Id}}">Участники</a></p>
+			<a class="event-edit" href="http://localhost:8080/events/edit/{{$val.Id}}">Редактировать</a> | 
+			<a class="event-delete" href="http://localhost:8080/events/delete/{{$val.Id}}">Удалить</a>
+		</div>
+	</article>
 	{{end}}
+	</section>
 {{end}}

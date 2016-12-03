@@ -13,13 +13,13 @@ type MainController struct {
 }
 
 func (c *MainController) Get() {
-	c.activeContent("home")
+	c.activeContent("home", "Активист")
     events := c.getAllEvents(0)
     c.Data["Events"] = events
 }
 
 func (c *MainController) Profile() {
-    c.activeContent("profile")
+    c.activeContent("profile", "Мой профиль")
     sess := c.GetSession("activist")
     if sess == nil {
         c.Redirect("/home", 302)
@@ -41,12 +41,14 @@ func (c *MainController) ToHome() {
 	c.Redirect("/home", 302)
 }
 
-func (c *MainController) activeContent(view string) {
+func (c *MainController) activeContent(view , title string) {
     c.Layout = "basic-layout.tpl"
     c.LayoutSections = make(map[string]string)
+    c.LayoutSections["Flash"] = "flash.tpl"
     c.LayoutSections["Header"] = "header.tpl"
     c.LayoutSections["Footer"] = "footer.tpl"
     c.TplName = view + ".tpl"
+    c.Data["Title"] = title;
     sess := c.GetSession("activist")
     if sess != nil {
         c.Data["InSession"] = 1 // for login bar in header.tpl
@@ -60,8 +62,13 @@ func (c *MainController) activeContent(view string) {
     }
 }
 
+// Функция для вывода только основного содержимого, без хедеров, футеров и т.д.
+
+func (c *MainController) activeBasicContent(view string) {
+    c.TplName = view + ".tpl";
+}
+
 func (c *MainController) ViewEvent() {
-    c.activeContent("events/view")
     id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
     if err != nil {
         log.Fatal(err)
@@ -69,6 +76,7 @@ func (c *MainController) ViewEvent() {
     }
     event := c.getEvent(id)
     c.Data["Event"] = event
+    c.activeContent("events/view", event.Name)
     sess := c.GetSession("activist")
     if sess != nil {
         m := sess.(map[string]interface{})
@@ -77,7 +85,7 @@ func (c *MainController) ViewEvent() {
 }
 
 func (c *MainController) ViewParticipants() {
-    c.activeContent("events/participants")
+    c.activeContent("events/participants", "Участники")
     sess := c.GetSession("activist")
     if sess == nil {
         c.Redirect("/home", 302)

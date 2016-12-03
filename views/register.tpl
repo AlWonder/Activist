@@ -1,11 +1,3 @@
-{{if .flash.error}}
-	<h3>{{.flash.error}}</h3>
-{{end}}
-{{if .Errors}}
-	{{range $rec := .Errors}}
-	<h3>{{$rec}}</h3>
-	{{end}}
-{{end}}
 <h1>Регистрация</h1>
 
 <form method="POST">

@@ -38,6 +38,11 @@ func init() {
 func main() {
 	beego.ErrorController(&controllers.ErrorController{})
 	beego.AddFuncMap("iszero",IsZero)
+
+	beego.SetStaticPath("/images","static/images")
+	beego.SetStaticPath("/css","static/css")
+	beego.SetStaticPath("/js","static/js")
+
     beego.Run()
 }
 

@@ -5,11 +5,14 @@
 	<title>{{.Title}}</title>
 </head>
 <body>
-<h1>Header</h1>
-<a href="http://localhost:8080/home">Home</a>
-<div>{{if .InSession}}
-    {{.FirstName}} {{.LastName}} [<a href="http://localhost:8080/logout">Logout</a>|<a href="http://localhost:8080/profile">Profile</a>]
-    {{else}}
-    [<a href="http://localhost:8080/login/home">Login</a>]
-    {{end}}
-</div>
+<header class="main-header">
+	<h1>Активист</h1>
+	<a href="http://localhost:8080/home">Home</a>
+	<div class="userpanel">{{if .InSession}}
+	    {{.FirstName}} {{.LastName}} [<a href="http://localhost:8080/logout">Logout</a>|<a href="http://localhost:8080/profile">Profile</a>]
+	    {{else}}
+	    [<a href="http://localhost:8080/login/home" class="login-button">Login</a>]
+	    {{end}}
+	</div>
+</header>
+<main>

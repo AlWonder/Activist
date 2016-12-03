@@ -1,7 +1,8 @@
-{{if .flash.error}}
-<h3>{{.flash.error}}</h3>
-{{end}}
-
+<section class="events-home">
 {{range $val := .Events}}
-		<h3><a href="/events/view/{{$val.Id}}">{{$val.Name}}</a></h3>
+	<article class="event">
+		<h3 class="title"><a href="/events/view/{{$val.Id}}">{{$val.Name}}</a></h3>
+		<p class="description">Описание</p>
+		</article>
 	{{end}}
+</section>

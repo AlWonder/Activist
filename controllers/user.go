@@ -16,7 +16,7 @@ import (
 func (c *MainController) Login() {
 	back := strings.Replace(c.Ctx.Input.Param(":back"), ">", "/", -1)
 	log.Println("back is", back)
-	c.activeContent("login")
+	c.activeContent("login", "Вход")
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
@@ -110,7 +110,7 @@ func (c *MainController) getUser(email string) *models.User {
 }
 
 func (c *MainController) Register() {
-	c.activeContent("register")
+	c.activeContent("register", "Регистрация")
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
@@ -188,7 +188,7 @@ func (c *MainController) NewPassword() {
 	}
 
 	flash := beego.NewFlash()
-	c.activeContent("changepwd")
+	c.activeContent("changepwd", "Изменить")
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
