@@ -3,16 +3,29 @@
 <html>
 <head>
 	<title>{{.Title}}</title>
+	<link href="/css/bootstrap.min.css" rel="stylesheet">
+	<link href="/css/style.css" rel="stylesheet">
 </head>
 <body>
-<header class="main-header">
-	<h1>Активист</h1>
-	<a href="http://localhost:8080/home">Home</a>
-	<div class="userpanel">{{if .InSession}}
-	    {{.FirstName}} {{.LastName}} [<a href="http://localhost:8080/logout">Logout</a>|<a href="http://localhost:8080/profile">Profile</a>]
-	    {{else}}
-	    [<a href="http://localhost:8080/login/home" class="login-button">Login</a>]
-	    {{end}}
-	</div>
-</header>
-<main>
+	<header class="navbar navbar-inverse navbar-fixed-top main-header">
+		<div class='container'>
+			<div class='navbar-header'>
+			<button type="button" class='navbar-toggle pull-left' data-toggle='collapse' data-target='.navbar-collapse'>
+				<span class='sr-only'>Открыть меню</span>
+				<i class='glyphicon glyphicon-align-justify'></i>
+			</button>
+			<a href="http://localhost:8080/home" class='navbar-brand'>Активист</a>
+			</div>
+			<ul class="nav navbar-nav navbar-right collapse navbar-collapse userpanel">{{if .InSession}}
+			    <!--<li><p>{{.FirstName}} {{.LastName}}</p></li>-->
+			    <li><a href="http://localhost:8080/profile">Профиль</a></li>
+			    <li><a href="http://localhost:8080/logout">Выход</a></li>
+			    {{else}}
+			    <li><a href="http://localhost:8080/register">Регистрация</a></li>
+			    <li><a href="http://localhost:8080/login/home">Вход</a></li>
+			    {{end}}
+			</ul>
+		</div>
+	</header>
+	<main>
+	<div class="container">

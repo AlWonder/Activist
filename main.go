@@ -42,6 +42,7 @@ func main() {
 	beego.SetStaticPath("/images","static/images")
 	beego.SetStaticPath("/css","static/css")
 	beego.SetStaticPath("/js","static/js")
+	beego.SetStaticPath("/fonts","static/fonts")
 
     beego.Run()
 }

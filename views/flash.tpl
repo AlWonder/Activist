@@ -5,8 +5,10 @@
 {{end}}
 {{if .Errors}}
 <section class="flash error">
-	{{range $rec := .Errors}}
-	<h3>{{$rec}}</h3>
-	{{end}}
+	<ul class='list-unstyled'>
+		{{range $rec := .Errors}}
+		<li>{{$rec}}</li>
+		{{end}}
+	</ul>
 </section>
 {{end}}

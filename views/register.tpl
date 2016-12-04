@@ -1,3 +1,4 @@
+<section class="register">
 <h1>Регистрация</h1>
 
 <form method="POST">
@@ -23,3 +24,4 @@
 	<input name="gender" type="radio" value="2"> ж <br>
 	<input type="submit" value="Регистрация">
 </form>
+</section>

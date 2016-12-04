@@ -43,7 +43,7 @@
 	<section class="my-events">
 	<h2>Мои мероприятия</h2>
 
-	<a class="new-event" href="/events/new">Новое мероприятие</a>
+	<a type='button' class='btn btn-logout btn-default' href="/events/new"><i class="glyphicon glyphicon-pencil"></i> Новое мероприятие</a>
 
 	{{range $val := .Events}}
 	<article class="event-full">
