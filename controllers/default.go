@@ -113,11 +113,12 @@ func (c *MainController) SearchTags() {
         return
     }
     
-    c.activeBasicContent("found-tags")
+    //c.activeBasicContent("found-tags")
 
     tag := c.Input().Get("tag")
     tags := c.findTags(tag)
-    c.Data["Tags"] = tags
+    c.Data["json"] = &tags
+    c.ServeJSON()
 
 }
 

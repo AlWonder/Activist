@@ -19,7 +19,7 @@ func (c *MainController) findTags(tag string) *[]models.Tag {
 	like := "%" + tag + "%"
 
 
-	_, err := o.Raw(`SELECT name
+	_, err := o.Raw(`SELECT *
 					 FROM tags
 					 WHERE name LIKE ?`, like).QueryRows(&tags)
 	if err != nil {
