@@ -10,11 +10,11 @@
 	<header class="navbar navbar-inverse navbar-fixed-top main-header">
 		<div class='container'>
 			<div class='navbar-header'>
-			<button type="button" class='navbar-toggle pull-left' data-toggle='collapse' data-target='.navbar-collapse'>
+			<a href="http://localhost:8080/home" class='navbar-brand'>Активист</a>
+			<button type="button" class='navbar-toggle' data-toggle='collapse' data-target='.navbar-collapse'>
 				<span class='sr-only'>Открыть меню</span>
 				<i class='glyphicon glyphicon-align-justify'></i>
 			</button>
-			<a href="http://localhost:8080/home" class='navbar-brand'>Активист</a>
 			</div>
 			<ul class="nav navbar-nav navbar-right collapse navbar-collapse userpanel">{{if .InSession}}
 			    <!--<li><p>{{.FirstName}} {{.LastName}}</p></li>-->

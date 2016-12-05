@@ -102,4 +102,23 @@ func (c *MainController) ViewParticipants() {
     } 
 }
 
+func (c *MainController) SearchTags() {
+    
+    if c.Ctx.Input.Method() != "POST" {
+        sess := c.GetSession("activist")
+        if sess == nil {
+            c.Redirect("/home", 302)
+        }
+        c.activeContent("searchtags", "Поиск тегов")
+        return
+    }
+    
+    c.activeBasicContent("found-tags")
+
+    tag := c.Input().Get("tag")
+    tags := c.findTags(tag)
+    c.Data["Tags"] = tags
+
+}
+
 
