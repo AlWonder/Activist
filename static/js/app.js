@@ -17,8 +17,8 @@ $(function() { //JQuery $(document).ready() short form
 					list.append('<li id="' + found.id + '">' + found.name + '</li>');
 				});*/
 				var foundElements = $.map(result, function(found, index) {
-					var listItem = $('<li></li>');
-					listItem.append('<li id="' + found.id + '">' + found.name + '</li>');
+					var listItem = $('<li id="' + found.id + '"></li>');
+					listItem.append(found.name);
 					return listItem;
 				});
 				list.detach()
