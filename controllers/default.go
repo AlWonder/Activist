@@ -13,10 +13,34 @@ type MainController struct {
 }
 
 func (c *MainController) Get() {
-	c.activeContent("home", "Активист", []string{}, []string{})
-    events := c.getAllEvents(0)
-    c.Data["Events"] = events
+		c.TplName = "index.html"
+    c.Render()
 }
+
+func (c *MainController) QueryEvents() {
+	events := c.getAllEvents(1)
+	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
+func (c *MainController) GetEvent() {
+	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+			log.Fatal(err)
+			return
+	}
+
+	event := c.getEventById(id)
+	c.Data["json"] = &event
+	c.ServeJSON()
+}
+
+/**
+* Дальше идёт старый код, который по-хорошему больше не стоит использовать.
+* Я оставил его потому, что пока я переписываю логику работы сервера,
+* чтобы он работал только с JSON, мне нужно ориентироваться,
+* как я делал это раньше
+*/
 
 func (c *MainController) getSessionInfo() map[string]interface{} {
     sess := c.GetSession("activist")
@@ -40,7 +64,7 @@ func (c *MainController) Profile() {
     } else if m["group"].(int64) == 2 {
         events := c.getEvents(userId)
         c.Data["Events"] = events
-    }    
+    }
 }
 
 func (c *MainController) ToHome() {
@@ -82,7 +106,7 @@ func (c *MainController) activeBasicContent(view string) {
     c.TplName = view + ".tpl";
 }
 
-func (c *MainController) ViewEvent() {
+/*func (c *MainController) ViewEvent() {
     id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
     if err != nil {
         log.Fatal(err)
@@ -94,7 +118,7 @@ func (c *MainController) ViewEvent() {
     if m := c.getSessionInfo(); m != nil {
         c.Data["IsJoined"] = c.isJoined(m["id"].(int64), id)
     }
-}
+}*/
 
 func (c *MainController) ViewParticipants() {
     c.activeContent("events/participants", "Участники", []string{}, []string{})
@@ -114,7 +138,7 @@ func (c *MainController) ViewParticipants() {
 }
 
 func (c *MainController) SearchTags() {
-    
+
     if c.Ctx.Input.Method() != "POST" {
         if m := c.getSessionInfo(); m == nil {
             c.Redirect("/home", 302)
@@ -122,7 +146,7 @@ func (c *MainController) SearchTags() {
         c.activeContent("searchtags", "Поиск тегов", []string{}, []string{})
         return
     }
-    
+
     tag := c.Input().Get("tag")
     tags := c.findTags(tag)
     c.Data["json"] = &tags

@@ -1,4 +1,0 @@
-<<<.Flash>>>
-<<<.Header>>>
-<<<.LayoutContent>>>
-<<<.Footer>>>

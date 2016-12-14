@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html ng-app="Activist">
+  <head>
+    <meta charset="utf-8">
+    <title>Активист</title>
+    <link href="/css/bootstrap.css" rel="stylesheet">
+    <link href="/css/bootstrap-theme.css" rel="stylesheet">
+    <link href="/css/style.css" rel="stylesheet">
+  </head>
+  <body>
+
+    <header class="navbar navbar-inverse navbar-fixed-top main-header">
+  		<div class='container-fluid'>
+  			<div class='navbar-header'>
+  			<a href="/" class='navbar-brand'>Активист</a>
+  			<button type="button" class='navbar-toggle' data-toggle='collapse' data-target='.navbar-collapse'>
+  				<span class='sr-only'>Открыть меню</span>
+  				<i class='glyphicon glyphicon-align-justify'></i>
+  			</button>
+  			</div>
+  			<ul class="nav navbar-nav navbar-right collapse navbar-collapse userpanel"><!--<<<if .InSession>>>
+  			    <li><a href="http://localhost:8080/profile">Профиль</a></li>
+  			    <li><a href="http://localhost:8080/logout">Выход</a></li>
+  			    <<<else>>>
+  			    <li><a href="http://localhost:8080/register">Регистрация</a></li>
+  			    <li><a href="http://localhost:8080/login/home">Вход</a></li>
+  			    <<<end>>>-->
+  			</ul>
+  		</div>
+  	</header>
+
+    <main class="container">
+      <ng-view></ng-view>
+    </main>
+
+    <footer>
+      <div class="container">
+        <h3>Бултых</h3>
+        <p>
+          Разработано для ОСО БГПУ
+        </br/>
+        </p>
+      </div>
+    </footer>
+
+  </body>
+
+  <!-- Vendor -->
+
+  <script src="/js/vendor/jquery-3.1.1.min.js"></script>
+  <script src="/js/vendor/angular.js"></script>
+  <script src="/js/vendor/angular-resource.js"></script>
+  <script src="/js/vendor/angular-route.js"></script>
+  <script src="/js/vendor/bootstrap.js"></script>
+
+  <!-- App -->
+  <script src="/js/app.js"></script>
+  <script src="/js/routes.js"></script>
+
+  <!-- Services -->
+  <script src="/js/services/event.js"></script>
+
+  <!-- Controllers -->
+  <script src="/js/controllers/events/eventsIndexController.js"></script>
+  <script src="/js/controllers/events/eventsShowController.js"></script>
+
+</html>

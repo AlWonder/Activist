@@ -1,0 +1,47 @@
+<div id="carousel-portfolio" class="carousel slide" data-ride="carousel">
+      <ol class="carousel-indicators">
+        <li data-target="#carousel-portfolio" data-slide-to="0" class="active"></li>
+        <li data-target="#carousel-portfolio" data-slide-to="1"></li>
+        <li data-target="#carousel-portfolio" data-slide-to="2"></li>
+      </ol>
+
+      <div class="carousel-inner" role="listbox">
+        <div class="item active">
+          <div class="carousel-caption">
+            <h1>My Little Pony</h1>
+            <p>
+              Coding is magic
+            </p>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="carousel-caption">
+            <h1>Apparently it's an old meme already</h1>
+            <p>
+              But I don't care.
+            </p>
+          </div>
+        </div>
+
+        <div class="item">
+          <div class="carousel-caption">
+            <h1>My fantasy has run out</h1>
+            <p>
+              Sorry :(
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+<div class="row">
+  <div class='col-sm-4' ng-repeat="event in events">
+  	<article class="event well well-sm">
+  		<h3 class="title"><a href="/#/events/{{event.id}}">{{event.name}}</a></h3>
+  		<p class="description">{{event.description}}</p>
+  	</article>
+  </div>
+</div>

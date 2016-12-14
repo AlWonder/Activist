@@ -62,10 +62,10 @@ func (c *MainController) NewEvent() {
 			return
 		}
 
-		event := models.Event{UserId: m["id"].(int64), Name: name, Description: description, 
+		event := models.Event{UserId: m["id"].(int64), Name: name, Description: description,
 							  CreateDate: createDate, EventDate: eventDate, EventTime: eventTime}
 		o := orm.NewOrm()
-		
+
 
 		_, err = o.Insert(&event)
 		if err != nil {
@@ -207,7 +207,7 @@ func (c *MainController) JoinEvent() {
 	    log.Println(eventId, userId)
 
 	    o := orm.NewOrm()
-		
+
 		userEvent := models.UserEvent{UserId: userId, EventId: eventId, Agree: true, AsVolonteur: false}
 		_, err = o.Insert(&userEvent)
 		if err != nil {
@@ -235,8 +235,8 @@ func (c *MainController) DenyEvent() {
 	m := sess.(map[string]interface{})
 	if c.isJoined(m["id"].(int64), eventId) {
 		o := orm.NewOrm()
-	    if num, err := o.QueryTable("users_events").Filter("user_id", 
-	    				 m["id"].(int64)).Filter("event_id", 
+	    if num, err := o.QueryTable("users_events").Filter("user_id",
+	    				 m["id"].(int64)).Filter("event_id",
 	    				 eventId).Delete(); err == nil {
 	        log.Println("Deleted row from users_events")
 	        log.Println(num)
@@ -265,7 +265,7 @@ func (c *MainController) DeleteEvent() {
 	}
 
 	o := orm.NewOrm()
-	
+
 	if num, err := o.Delete(&models.Event{Id: eventId}); err == nil {
 		log.Println(num)
 	} else {
@@ -294,7 +294,7 @@ func (c *MainController) getEvents(userId int64) *[]models.Event {
 	var events []models.Event
 
 	o := orm.NewOrm()
-	
+
 	_, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events)
 	if err != nil {
 		log.Fatal(err)
@@ -307,11 +307,11 @@ func (c *MainController) getAllEvents(limit int) *[]models.Event {
 	var events []models.Event
 
 	o := orm.NewOrm()
-	
-	_, err := o.Raw(`SELECT events.id, name 
-					 FROM events 
-					 INNER JOIN users ON events.user_id=users.id 
-					 WHERE users.user_group = 2 LIMIT ?, 10`, 
+
+	_, err := o.Raw(`SELECT events.*
+					 FROM events
+					 INNER JOIN users ON events.user_id=users.id
+					 WHERE users.user_group = 2 LIMIT ?, 10`,
 					 limit).QueryRows(&events)
 	if err != nil {
 		log.Fatal(err)
@@ -320,11 +320,11 @@ func (c *MainController) getAllEvents(limit int) *[]models.Event {
 	return &events
 }
 
-func (c *MainController) getEvent(id int64) *models.Event {
+func (c *MainController) getEventById(id int64) *models.Event {
 	event := models.Event{Id: id}
 
 	o := orm.NewOrm()
-	
+
 	err := o.Raw("SELECT * FROM events WHERE id = ?", id).QueryRow(&event)
 	if err != nil {
 		log.Fatal(err)
@@ -338,9 +338,9 @@ func (c *MainController) getAcceptedEvents(user int64, limit int) *[]models.Even
 	var events []models.Event
 
 	o := orm.NewOrm()
-	
+
 	_, err := o.Raw(`SELECT events.*
-					 FROM events INNER JOIN (users_events INNER JOIN users ON users.id = users_events.user_id) 
+					 FROM events INNER JOIN (users_events INNER JOIN users ON users.id = users_events.user_id)
 					 ON events.id = users_events.event_id
 					 WHERE users.id = ? AND agree = 1
 					 LIMIT ?, 10`, user, limit).QueryRows(&events)
@@ -358,7 +358,7 @@ func (c *MainController) getParticipants(eventId int64) *[]models.User {
 	o := orm.NewOrm()
 
 	_, err := o.Raw(`SELECT users.*
-					 FROM users INNER JOIN (users_events INNER JOIN events ON events.id = users_events.event_id) 
+					 FROM users INNER JOIN (users_events INNER JOIN events ON events.id = users_events.event_id)
 					 ON users.id = users_events.user_id
 					 WHERE events.id = ? AND agree = 1`, eventId).QueryRows(&users)
 	if err != nil {

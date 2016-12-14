@@ -20,11 +20,6 @@ const (
     verbose = false
 )
 
-func IsZero(t time.Time) (zero bool) {
-	zero = t.IsZero()
-	return
-}
-
 func init() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
 	orm.RegisterDataBase("default", "mysql", db_user + ":" + db_pw + "@tcp(127.0.0.1:3306)/" + db_name + "?charset=utf8&parseTime=True")
@@ -37,14 +32,12 @@ func init() {
 
 func main() {
 	beego.ErrorController(&controllers.ErrorController{})
-	beego.AddFuncMap("iszero",IsZero)
 
-	beego.SetStaticPath("/images","static/images")
-	beego.SetStaticPath("/css","static/css")
-	beego.SetStaticPath("/js","static/js")
+	beego.SetStaticPath("/img","static/images")
+	beego.SetStaticPath("/css","static/styles")
+	beego.SetStaticPath("/js","static/javascript")
 	beego.SetStaticPath("/fonts","static/fonts")
+	beego.SetStaticPath("/tpl","static/templates")
 
-
-    beego.Run()
+	beego.Run()
 }
-
