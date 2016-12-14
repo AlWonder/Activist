@@ -13,24 +13,30 @@ type MainController struct {
 }
 
 func (c *MainController) Get() {
-	c.activeContent("home", "Активист")
+	c.activeContent("home", "Активист", []string{}, []string{})
     events := c.getAllEvents(0)
     c.Data["Events"] = events
 }
 
-func (c *MainController) Profile() {
-    c.activeContent("profile", "Мой профиль")
+func (c *MainController) getSessionInfo() map[string]interface{} {
     sess := c.GetSession("activist")
     if sess == nil {
+        return nil
+    }
+    return sess.(map[string]interface{})
+}
+
+func (c *MainController) Profile() {
+    c.activeContent("profile/profile", "Мой профиль", []string{}, []string{"profile"})
+
+    m := c.getSessionInfo()
+    if m == nil {
         c.Redirect("/home", 302)
     }
-    m := sess.(map[string]interface{})
+
     userId := m["id"].(int64)
     log.Println(m["group"].(int64))
     if m["group"].(int64) == 1 {
-        events := c.getAcceptedEvents(userId, 0)
-        log.Println(events)
-        c.Data["Events"] = events
     } else if m["group"].(int64) == 2 {
         events := c.getEvents(userId)
         c.Data["Events"] = events
@@ -41,7 +47,9 @@ func (c *MainController) ToHome() {
 	c.Redirect("/home", 302)
 }
 
-func (c *MainController) activeContent(view , title string) {
+    // Template, page title, Angular module, additional css and js
+//func (c *MainController) activeContent(view, title, module string, css, js []string) {
+func (c *MainController) activeContent(view, title string, css, js []string) {
     c.Layout = "basic-layout.tpl"
     c.LayoutSections = make(map[string]string)
     c.LayoutSections["Flash"] = "flash.tpl"
@@ -49,10 +57,8 @@ func (c *MainController) activeContent(view , title string) {
     c.LayoutSections["Footer"] = "footer.tpl"
     c.TplName = view + ".tpl"
     c.Data["Title"] = title;
-    sess := c.GetSession("activist")
-    if sess != nil {
+    if m := c.getSessionInfo(); m != nil {
         c.Data["InSession"] = 1 // for login bar in header.tpl
-        m := sess.(map[string]interface{})
         c.Data["Email"] = m["email"]
         c.Data["Group"] = m["group"]
         c.Data["FirstName"] = m["first_name"]
@@ -60,6 +66,14 @@ func (c *MainController) activeContent(view , title string) {
         c.Data["LastName"] = m["last_name"]
         c.Data["Gender"] = m["gender"]
     }
+    if len(css) > 0 {
+        c.Data["Css"] = css;
+    }
+    if len(js) > 0 {
+        c.Data["Js"] = js;
+        log.Println(js)
+    }
+
 }
 
 // Функция для вывода только основного содержимого, без хедеров, футеров и т.д.
@@ -76,18 +90,16 @@ func (c *MainController) ViewEvent() {
     }
     event := c.getEvent(id)
     c.Data["Event"] = event
-    c.activeContent("events/view", event.Name)
-    sess := c.GetSession("activist")
-    if sess != nil {
-        m := sess.(map[string]interface{})
+    c.activeContent("events/view", event.Name, []string{}, []string{})
+    if m := c.getSessionInfo(); m != nil {
         c.Data["IsJoined"] = c.isJoined(m["id"].(int64), id)
     }
 }
 
 func (c *MainController) ViewParticipants() {
-    c.activeContent("events/participants", "Участники")
-    sess := c.GetSession("activist")
-    if sess == nil {
+    c.activeContent("events/participants", "Участники", []string{}, []string{})
+    m := c.getSessionInfo()
+    if m == nil {
         c.Redirect("/home", 302)
     }
     id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -95,21 +107,19 @@ func (c *MainController) ViewParticipants() {
         log.Fatal(err)
         return
     }
-    m := sess.(map[string]interface{})
     if c.belongsTo(id, m["id"].(int64)) {
         participants := c.getParticipants(id)
         c.Data["Participants"] = participants
-    } 
+    }
 }
 
 func (c *MainController) SearchTags() {
     
     if c.Ctx.Input.Method() != "POST" {
-        sess := c.GetSession("activist")
-        if sess == nil {
+        if m := c.getSessionInfo(); m == nil {
             c.Redirect("/home", 302)
         }
-        c.activeContent("searchtags", "Поиск тегов")
+        c.activeContent("searchtags", "Поиск тегов", []string{}, []string{})
         return
     }
     
@@ -121,3 +131,27 @@ func (c *MainController) SearchTags() {
 }
 
 
+// AngularJS directives
+
+func (c *MainController) ProfileInfo() {
+    c.TplName = "profile/profile-info.tpl";
+
+}
+
+// JSON
+
+func (c *MainController) AcceptedEvents() {
+    m := c.getSessionInfo()
+    if m == nil {
+        c.Data["json"] = map[string]string{}
+        c.ServeJSON()
+        return
+    }
+
+    if m["group"].(int64) == 1 { // If a user is a participant
+        events := c.getAcceptedEvents(m["id"].(int64), 0)
+        log.Println(events)
+        c.Data["json"] = &events
+        c.ServeJSON()
+    }
+}

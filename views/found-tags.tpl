@@ -1,9 +1,9 @@
-{{if .Tags}}
+<<<if .Tags>>>
 <div class="found">
-{{range $val := .Tags}}
+<<<range $val := .Tags>>>
 <article class="tag">
-	<p>{{$val.Name}}</p>
+	<p><<<$val.Name>>></p>
 	</article>
-{{end}}
+<<<end>>>
 </div>
-{{end}}
+<<<end>>>

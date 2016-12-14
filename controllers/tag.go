@@ -28,4 +28,4 @@ func (c *MainController) findTags(tag string) *[]models.Tag {
 	}
 	log.Println(tags)
 	return &tags
-}
+} 

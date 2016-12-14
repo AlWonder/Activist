@@ -21,4 +21,10 @@ func init() {
     beego.Router("/profile", &controllers.MainController{}, "get:Profile")
     beego.Router("/profile/changepwd", &controllers.MainController{}, "get,post:NewPassword")
     beego.Router("/tags/find", &controllers.MainController{}, "get,post:SearchTags")
+
+    // AngularJS directives routes
+    beego.Router("/ng/profile/info", &controllers.MainController{}, "get:ProfileInfo")
+
+    // JSON data
+    beego.Router("/json/events/accepted", &controllers.MainController{}, "get:AcceptedEvents")
 }

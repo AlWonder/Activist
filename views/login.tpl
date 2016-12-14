@@ -1,6 +1,6 @@
 <section class="login">
 	<h1>Вход</h1>
-	<form method="POST">
+	<form action="http://localhost:8080/login/home" method="POST">
 		<p>Имя пользователя</p>
 		<input type="text" name="email" required>
 		<p>Пароль</p>

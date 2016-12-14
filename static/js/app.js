@@ -1,4 +1,4 @@
-$(function() { //JQuery $(document).ready() short form
+/*$(function() { //JQuery $(document).ready() short form
 	$('#tag').on('keyup', function(event) {
 		var tag = $('#tag').val().trim()
 		
@@ -13,9 +13,9 @@ $(function() { //JQuery $(document).ready() short form
 				var list = $('.tags .found');
 				//list.find('li').remove();
 				//alert(result);
-				/*$.each(result, function(index, found) {
-					list.append('<li id="' + found.id + '">' + found.name + '</li>');
-				});*/
+				//$.each(result, function(index, found) {
+				//	list.append('<li id="' + found.id + '">' + found.name + '</li>');
+				//});
 				var foundElements = $.map(result, function(found, index) {
 					var listItem = $('<li id="' + found.id + '"></li>');
 					listItem.append(found.name);
@@ -36,4 +36,21 @@ $(function() { //JQuery $(document).ready() short form
 			data: $(this).serialize()
 		});
 	});
-});
+});*/
+
+(function() {
+	var app = angular.module('activist', []);
+
+	app.controller('AcceptedEventsController', ['$http', function($http){
+        var that = this;
+        that.events = [];
+
+        $http.get('/json/events/accepted').then(function successCallback(data) {
+            that.events = data;
+        }, function errorCallback(response) {
+    // called asynchronously if an error occurs
+    // or server returns response with an error status.
+  });
+    }]);
+
+})();

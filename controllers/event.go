@@ -11,14 +11,13 @@ import (
 )
 
 func (c *MainController) NewEvent() {
-	c.activeContent("events/new", "Новое событие")
+	c.activeContent("events/new", "Новое событие", []string{}, []string{})
 	flash := beego.NewFlash()
-	sess := c.GetSession("activist")
-	if sess == nil {
-		c.Redirect("/home", 302)
-	}
 
-	m := sess.(map[string]interface{})
+	m := c.getSessionInfo()
+    if m == nil {
+        c.Redirect("/home", 302)
+    }
 
 	var org int64
 	org = 2
@@ -80,7 +79,7 @@ func (c *MainController) NewEvent() {
 }
 
 func (c *MainController) EditEvent() {
-	c.activeContent("events/edit", "Изменить событие")
+	c.activeContent("events/edit", "Изменить событие", []string{}, []string{})
 	flash := beego.NewFlash()
 	sess := c.GetSession("activist")
 	if sess == nil {
@@ -177,7 +176,7 @@ func (c *MainController) EditEvent() {
 }
 
 func (c *MainController) JoinEvent() {
-	c.activeContent("events/join", "")
+	c.activeContent("events/join", "", []string{}, []string{})
 	sess := c.GetSession("activist")
 	if sess != nil {
 		c.Redirect("/home", 302)
@@ -340,8 +339,7 @@ func (c *MainController) getAcceptedEvents(user int64, limit int) *[]models.Even
 
 	o := orm.NewOrm()
 	
-	_, err := o.Raw(`SELECT events.id, events.user_id, events.name, 
-					 events.description, events.event_date, events.event_time 
+	_, err := o.Raw(`SELECT events.*
 					 FROM events INNER JOIN (users_events INNER JOIN users ON users.id = users_events.user_id) 
 					 ON events.id = users_events.event_id
 					 WHERE users.id = ? AND agree = 1

@@ -1,4 +1,4 @@
-{{.Flash}}
-{{.Header}}
-{{.LayoutContent}}
-{{.Footer}}
+<<<.Flash>>>
+<<<.Header>>>
+<<<.LayoutContent>>>
+<<<.Footer>>>

@@ -16,7 +16,7 @@ import (
 func (c *MainController) Login() {
 	back := strings.Replace(c.Ctx.Input.Param(":back"), ">", "/", -1)
 	log.Println("back is", back)
-	c.activeContent("login", "Вход")
+	c.activeContent("login", "Вход", []string{}, []string{})
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
@@ -110,7 +110,7 @@ func (c *MainController) getUser(email string) *models.User {
 }
 
 func (c *MainController) Register() {
-	c.activeContent("register", "Регистрация")
+	c.activeContent("register", "Регистрация", []string{}, []string{})
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
@@ -182,18 +182,17 @@ func (c *MainController) Register() {
 }
 
 func (c *MainController) NewPassword() {
-	sess := c.GetSession("activist")
-	if sess == nil {
-		c.Redirect("/home", 302)
-	}
+	m := c.getSessionInfo()
+    if m == nil {
+        c.Redirect("/home", 302)
+    }
 
 	flash := beego.NewFlash()
-	c.activeContent("changepwd", "Изменить")
+	c.activeContent("changepwd", "Изменить", []string{}, []string{})
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
-
-	m := sess.(map[string]interface{})
+	
 	userId := m["id"].(int64)
 	oldPassword := c.Input().Get("old_password")
 	newPassword := c.Input().Get("new_password")

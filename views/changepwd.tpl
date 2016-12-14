@@ -1,6 +1,6 @@
-{{if .flash.error}}
-	<h3>{{.flash.error}}</h3>
-{{end}}
+<<<if .flash.error>>>
+	<h3><<<.flash.error>>></h3>
+<<<end>>>
 
 <form method="POST">
 	<input type="password" name="old_password">

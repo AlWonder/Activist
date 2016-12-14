@@ -10,7 +10,13 @@
 </footer>
 
 <script src='/js/jquery-3.1.1.min.js'></script>
+<script src='/js/angular.min.js'></script>
 <script src='/js/bootstrap.min.js'></script>
 <script src='/js/app.js'></script>
+<<< if .Js >>>
+	<<< range $js := .Js >>>
+	<script src='/js/<<< $js >>>.js'></script>
+	<<< end >>>
+<<< end >>>
 </body>
 </html>
