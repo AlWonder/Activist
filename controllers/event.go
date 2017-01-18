@@ -311,7 +311,7 @@ func (c *MainController) getAllEvents(limit int) *[]models.Event {
 	_, err := o.Raw(`SELECT events.*
 					 FROM events
 					 INNER JOIN users ON events.user_id=users.id
-					 WHERE users.user_group = 2 LIMIT ?, 10`,
+					 WHERE users.group = 2 LIMIT ?, 10`,
 					 limit).QueryRows(&events)
 	if err != nil {
 		log.Fatal(err)

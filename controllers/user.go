@@ -9,50 +9,91 @@ import (
 	"bee/activist/models"
 	"strconv"
 	"encoding/hex"
-	"strings"
+	"encoding/json"
+	jwt "github.com/dgrijalva/jwt-go"
 	"time"
+
 )
 
+var privateKey = []byte("pisos")
+
+type Error struct {
+	UserMessage     string     `json:"userMessage"`
+	Code            float64    `json:"code"`
+}
+
+type LoginResponse struct {
+	IdToken         string     `json:"idToken"`
+	Errors          []Error    `json:"errors"`
+}
+
 func (c *MainController) Login() {
-	back := strings.Replace(c.Ctx.Input.Param(":back"), ">", "/", -1)
-	log.Println("back is", back)
-	c.activeContent("login", "Вход", []string{}, []string{})
-	if c.Ctx.Input.Method() != "POST" {
+	request := make(map[string]interface{})
+	var response LoginResponse
+
+	// Checking for a correct JSON request. If not, throw an error to a client
+  if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.appendError(&response, "Request error", 400)
+		c.Ctx.Output.SetStatus(400)
+		c.Data["json"] = response
+		c.ServeJSON()
 		return
 	}
 
-	flash := beego.NewFlash()
-	var x pk.PasswordHash
-	email := c.Input().Get("email")
-	password := c.Input().Get("password")
+	// Checking if username and password fields are correct
+	var email, password string
+	if field, ok := request["username"].(string); ok {
+		email = field
+	} else {
+		c.appendError(&response, "Bad username field", 400)
+	}
+	if field, ok := request["password"].(string); ok {
+		password = field
+	} else {
+		c.appendError(&response, "Bad password field", 400)
+	}
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
 
 	valid := validation.Validation{}
 	valid.Required(email, "email")
 	valid.Required(password, "password")
 	valid.Email(email, "email")
+	valid.MaxSize(email, 30, "email")
+	valid.MaxSize(password, 30, "email")
+
 	if valid.HasErrors() {
-		errormap := []string{}
 		for _, err := range valid.Errors {
-			errormap = append(errormap, "Validation failed on "+err.Key+": "+err.Message+"\n")
+			c.appendError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			log.Println("Error on " + err.Key)
 		}
-		c.Data["Errors"] = errormap
+	}
+
+	// Checking for having validation errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
 		return
 	}
-	//log.Println("Authorization is", email, ":", password)
 
+	// Getting a user from db
 	user := c.getUser(email)
 	if user == nil {
-		flash.Error("No such user/email")
-		flash.Store(&c.Controller)
+		c.appendError(&response, "Пользователь с таким email не найден", 400)
+		c.Data["json"] = response
+		c.ServeJSON()
 		return
 	}
 
-	/*log.Println("id: ", user.Id)
-	log.Println("login: ", user.Email)
-	log.Println("passwd: ", user.Password)
-	log.Println("usr_group: ", user.UserGroup)
-	log.Println("Password to scan:", user.Password)*/
-	
+	// Comparing passwords from a client and the database
+	var x pk.PasswordHash
 	x.Hash = make([]byte, 32)
 	x.Salt = make([]byte, 16)
 	var err error
@@ -63,41 +104,106 @@ func (c *MainController) Login() {
 	if x.Salt, err = hex.DecodeString(user.Password[64:]); err != nil {
 		log.Println("ERROR:", err)
 	}
-	//log.Println("decoded password is", x)
 
 	if !pk.MatchPassword(password, &x) {
-		flash.Error("Wrong password")
-		flash.Store(&c.Controller)
+		c.appendError(&response, "Неверный email/пароль", 400)
+		c.Data["json"] = response
+		c.ServeJSON()
 		return
 	}
 
-	m := make(map[string]interface{})
-	m["id"] = user.Id
-	m["email"] = user.Email
-	m["group"] = user.UserGroup
-	m["timestamp"] = time.Now()
-	m["first_name"] = user.FirstName
-	m["second_name"] = user.SecondName
-	m["last_name"] = user.LastName
-	m["gender"] = user.Gender 
-	c.SetSession("activist", m)
-	c.Redirect("/"+back, 302)
-	
-	flash.Notice("Welcome, " + c.Input().Get("email"))
-	c.Redirect("/"+back, 302)
+	// Generating a token and sending it to a client
+	token := c.generateToken(user.Id, user.Group)
+	response.IdToken = token
+
+	c.Data["json"] = response
+	c.ServeJSON()
 }
 
-func (this *MainController) Logout() {
-	this.DelSession("activist")
-	this.Redirect("/home", 302)
+func (c *MainController) SignUp() {
+	user := make(map[string]interface{})
+  json.Unmarshal(c.Ctx.Input.RequestBody, &user)
+	var response LoginResponse
+
+	if userInterface, ok := user["user"].(map[string]interface{}); !ok {
+		c.appendError(&response, "Request error", 400)
+		c.Ctx.Output.SetStatus(400)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		user = userInterface
+	}
+
+	// Validate input fields
+	valid := validation.Validation{}
+	valid.Email(user["email"], "email")
+	valid.Required(user["email"], "email")
+	valid.Required(user["password"], "password")
+	valid.Required(user["group"], "group")
+	valid.Required(user["firstName"], "first_name")
+	valid.Required(user["secondName"], "second_name")
+	valid.Required(user["lastName"], "last_name")
+	valid.Required(user["gender"], "gender")
+	valid.MaxSize(user["email"], 30, "email")
+	valid.MaxSize(user["password"], 30, "email")
+	valid.MaxSize(user["firstName"], 25, "first_name")
+	valid.MaxSize(user["secondName"], 25, "second_name")
+	valid.MaxSize(user["lastName"], 25, "last_name")
+
+	if valid.HasErrors() {
+		for _, err := range valid.Errors {
+			c.appendError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			log.Println("Error on " + err.Key)
+		}
+	}
+
+	var newUser models.User
+
+	// Checking if fields have correct type
+	c.checkStringField(&newUser.Email, user["email"], &response, "Email")
+	c.checkStringField(&newUser.Password, user["password"], &response, "Password")
+	c.checkStringField(&newUser.FirstName, user["firstName"], &response, "First name")
+	c.checkStringField(&newUser.SecondName, user["secondName"], &response, "Second name")
+	c.checkStringField(&newUser.LastName, user["lastName"], &response, "Last name")
+	c.checkIntField(&newUser.Gender, user["gender"], &response, "Gender")
+	c.checkIntField(&newUser.Group, user["group"], &response, "Group")
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	// If it's alright, hashing the password and creating a new user
+	h := pk.HashPassword(user["password"].(string))
+	o := orm.NewOrm()
+
+	newUser.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
+	log.Println("hex: " + hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt))
+	if _, err := o.Insert(&newUser); err != nil {
+		c.appendError(&response, "Не удалось зарегистрироваться. Возможно, пользователь с таким именем уже существует", 400)
+		log.Println(err)
+	} else {
+		// Generating a token and sending it to a client
+		token := c.generateToken(newUser.Id, newUser.Group)
+		response.IdToken = token
+	}
+
+	c.Data["json"] = response
+	c.ServeJSON()
+}
+
+func (c *MainController) GetUser(id int64) {
+
 }
 
 func (c *MainController) getUser(email string) *models.User {
 	o := orm.NewOrm()
 	user := models.User{Email: email}
 	err := o.Read(&user, "email")
-
-	//err := o.Raw("SELECT * FROM users WHERE login = ?", email).QueryRow(&user)
 
 	if err == orm.ErrNoRows {
     	log.Println("No result found.")
@@ -109,76 +215,46 @@ func (c *MainController) getUser(email string) *models.User {
 	return &user
 }
 
-func (c *MainController) Register() {
-	c.activeContent("register", "Регистрация", []string{}, []string{})
-	if c.Ctx.Input.Method() != "POST" {
-		return
-	}
+func (c *MainController) generateToken(id, group int64) string {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+    "user_id": id,
+		"iat": time.Now().Unix(),
+    "exp": time.Now().Unix() + 36000,
+	})
 
-	flash := beego.NewFlash()
-	email := c.Input().Get("email")
-	password := c.Input().Get("password")
-	password2 := c.Input().Get("password2")
-	group, err := strconv.ParseInt(c.Input().Get("group"), 10 , 64)
-	if err != nil {
-		flash.Error("Wrong group")
-		flash.Store(&c.Controller)
-		return
-	}
-	firstName := c.Input().Get("first_name")
-	secondName := c.Input().Get("second_name")
-	lastName := c.Input().Get("last_name")
-	gender, err := strconv.ParseInt(c.Input().Get("gender"), 10 , 64)
-	if err != nil {
-		flash.Error("Wrong gender")
-		flash.Store(&c.Controller)
-		return
-	}
+	tokenString, _ := token.SignedString(privateKey)
 
-	valid := validation.Validation{}
-	valid.Email(email, "email")
-	valid.Required(email, "email")
-	valid.Required(password, "password")
-	valid.Required(password2, "password2")
-	valid.Required(group, "group")
-	valid.Required(firstName, "first_name")
-	valid.Required(secondName, "second_name")
-	valid.Required(lastName, "last_name")
-	valid.Required(gender, "gender")
-	valid.MaxSize(email, 30, "email")
-	valid.MaxSize(firstName, 25, "first_name")
-	valid.MaxSize(secondName, 25, "second_name")
-	valid.MaxSize(lastName, 25, "last_name")
+	return tokenString
+}
 
-	if valid.HasErrors() {
-		errormap := []string{}
-		log.Println("There are some valid errors")
-		for _, err := range valid.Errors {
-			errormap = append(errormap, "Validation failed on "+err.Key+": "+err.Message+"\n")
+// Checks that json field is string and appends an error into response if it isn't
+func (c *MainController) checkStringField(userProperty *string, field interface{}, response *LoginResponse, fieldName string) {
+	if checkedField, ok := field.(string); ok {
+		*userProperty = checkedField
+		log.Println(checkedField)
+	} else {
+		c.appendError(response, "Datatype error in " + fieldName, 400)
+	}
+}
+
+func (c *MainController) checkIntField(userProperty *int64, field interface{}, response *LoginResponse, fieldName string) {
+	if stringField, ok := field.(string); ok {
+		if checkedField, err := strconv.ParseInt(stringField, 10, 64); err != nil {
+			c.appendError(response, "Datatype error in " + fieldName, 400)
+		} else {
+			*userProperty = checkedField
 		}
-		c.Data["Errors"] = errormap
-		return
+	} else {
+		c.appendError(response, "Datatype error in " + fieldName, 400)
 	}
+}
 
-	if password != password2 {
-		flash.Error("Passwords don't match")
-		flash.Store(&c.Controller)
-		return
-	}
-
-	h := pk.HashPassword(password)
-
-	o := orm.NewOrm()
-    
-
-    user := models.User{Email: email, UserGroup: group, FirstName: firstName, SecondName: secondName, LastName: lastName, Gender: gender}
-
-	// Convert password hash to string
-	user.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
-	log.Println("hex: " + hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt))
-
-    log.Println(o.Insert(&user))
-    c.Redirect("/home", 302)
+// Appends an error into the response body
+func (c *MainController) appendError(response *LoginResponse, message string, code float64) {
+	response.Errors = append(response.Errors, Error {
+		UserMessage: message,
+		Code: code,
+	})
 }
 
 func (c *MainController) NewPassword() {
@@ -192,7 +268,7 @@ func (c *MainController) NewPassword() {
 	if c.Ctx.Input.Method() != "POST" {
 		return
 	}
-	
+
 	userId := m["id"].(int64)
 	oldPassword := c.Input().Get("old_password")
 	newPassword := c.Input().Get("new_password")

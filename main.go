@@ -7,6 +7,8 @@ import (
 	"github.com/astaxie/beego/orm"
 	"log"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/astaxie/beego/plugins/cors"
+	//"github.com/auth0/go-jwt-middleware"
 	"bee/activist/controllers"
 	"time"
 )
@@ -15,7 +17,7 @@ import (
 const (
     db_name = "activist"
     db_user = "root"
-    db_pw = "1111"
+    db_pw = "fluttershy"
     force = false
     verbose = false
 )
@@ -31,6 +33,16 @@ func init() {
 }
 
 func main() {
+	/*jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
+    ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
+      secret := os.Getenv("AUTH0_CLIENT_SECRET")
+      if secret == "" {
+        return nil, errors.New("AUTH0_CLIENT_SECRET is not set")
+      }
+      return secret, nil
+    },
+  })*/
+
 	beego.ErrorController(&controllers.ErrorController{})
 
 	beego.SetStaticPath("/img","static/images")
@@ -38,6 +50,14 @@ func main() {
 	beego.SetStaticPath("/js","static/javascript")
 	beego.SetStaticPath("/fonts","static/fonts")
 	beego.SetStaticPath("/tpl","static/templates")
+
+	beego.InsertFilter("*", beego.BeforeRouter,cors.Allow(&cors.Options{
+        AllowOrigins: []string{"*"},
+        AllowMethods: []string{"GET", "DELETE", "POST", "PUT", "PATCH", "OPTIONS"},
+        AllowHeaders: []string{"Origin", "Access-Control-Allow-Origin", "Content-Type"},
+        ExposeHeaders: []string{"Content-Length", "Access-Control-Allow-Origin"},
+        AllowCredentials: true,
+    }))
 
 	beego.Run()
 }

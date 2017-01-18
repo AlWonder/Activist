@@ -6,7 +6,7 @@ import (
 )
 
 type Event struct {
-	Id 				int64   	`orm:"column(id)" json:"id"` 
+	Id 				int64   	`orm:"column(id)" json:"id"`
 	UserId 			int64   	`orm:"column(user_id)" json:"user_id"`
 	Name			string		`orm:"column(name);size(120)" json:"name"`
 	Description		string		`orm:"column(description);type(text)" json:"description"`
@@ -84,7 +84,7 @@ type User struct {
 	Id 			int64   `orm:"column(id)" json:"id"`
 	Email		string	`orm:"column(email);size(30);unique" json:"email"`
 	Password	string	`orm:"column(password);size(128)" json:"password"`
-	UserGroup	int64	`orm:"column(user_group);default(1)" json:"user_group"`
+	Group	int64	`orm:"column(group);default(1)" json:"group"`
 	FirstName	string	`orm:"column(first_name);size(25)" json:"first_name"`
 	SecondName	string	`orm:"column(second_name);size(25)" json:"second_name"`
 	LastName	string	`orm:"column(last_name);size(25)" json:"last_name"`
