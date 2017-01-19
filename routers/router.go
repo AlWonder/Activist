@@ -13,4 +13,5 @@ func init() {
 		beego.Router("/events/:id([0-9]+", &controllers.MainController{}, "get:GetEvent")
 		beego.Router("/login", &controllers.MainController{}, "post:Login")
 		beego.Router("/signup", &controllers.MainController{}, "post:SignUp")
+		beego.Router("/users", &controllers.MainController{}, "get:GetUserInfo")
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/astaxie/beego/validation"
 	"bee/activist/models"
 	"strconv"
+	"errors"
 	"encoding/hex"
 	"encoding/json"
 	jwt "github.com/dgrijalva/jwt-go"
@@ -18,13 +19,27 @@ import (
 var privateKey = []byte("pisos")
 
 type Error struct {
-	UserMessage     string     `json:"userMessage"`
-	Code            float64    `json:"code"`
+	UserMessage    string      `json:"userMessage"`
+	Code           float64     `json:"code"`
 }
 
 type LoginResponse struct {
-	IdToken         string     `json:"idToken"`
-	Errors          []Error    `json:"errors"`
+	IdToken        string      `json:"idToken"`
+	Errors         []Error     `json:"errors"`
+}
+
+type GetUserInfoResponse struct {
+	User           UserInfo `json:"user"`
+	Errors         []Error     `json:"errors"`
+}
+
+type UserInfo struct {
+	Email          *string	`json:"email"`
+	Group          *int64	  `json:"group"`
+	FirstName      *string	`json:"firstName"`
+	SecondName     *string	`json:"secondName"`
+	LastName       *string	`json:"lastName"`
+	Gender         *int64	  `json:"gender"`
 }
 
 func (c *MainController) Login() {
@@ -33,7 +48,7 @@ func (c *MainController) Login() {
 
 	// Checking for a correct JSON request. If not, throw an error to a client
   if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
-		c.appendError(&response, "Request error", 400)
+		c.appendLoginError(&response, "Request error", 400)
 		c.Ctx.Output.SetStatus(400)
 		c.Data["json"] = response
 		c.ServeJSON()
@@ -45,12 +60,12 @@ func (c *MainController) Login() {
 	if field, ok := request["username"].(string); ok {
 		email = field
 	} else {
-		c.appendError(&response, "Bad username field", 400)
+		c.appendLoginError(&response, "Bad username field", 400)
 	}
 	if field, ok := request["password"].(string); ok {
 		password = field
 	} else {
-		c.appendError(&response, "Bad password field", 400)
+		c.appendLoginError(&response, "Bad password field", 400)
 	}
 
 	// Checking for having errors
@@ -70,7 +85,7 @@ func (c *MainController) Login() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			c.appendLoginError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -86,7 +101,7 @@ func (c *MainController) Login() {
 	// Getting a user from db
 	user := c.getUser(email)
 	if user == nil {
-		c.appendError(&response, "Пользователь с таким email не найден", 400)
+		c.appendLoginError(&response, "Пользователь с таким email не найден", 400)
 		c.Data["json"] = response
 		c.ServeJSON()
 		return
@@ -106,7 +121,7 @@ func (c *MainController) Login() {
 	}
 
 	if !pk.MatchPassword(password, &x) {
-		c.appendError(&response, "Неверный email/пароль", 400)
+		c.appendLoginError(&response, "Неверный email/пароль", 400)
 		c.Data["json"] = response
 		c.ServeJSON()
 		return
@@ -126,7 +141,7 @@ func (c *MainController) SignUp() {
 	var response LoginResponse
 
 	if userInterface, ok := user["user"].(map[string]interface{}); !ok {
-		c.appendError(&response, "Request error", 400)
+		c.appendLoginError(&response, "Request error", 400)
 		c.Ctx.Output.SetStatus(400)
 		c.Data["json"] = response
 		c.ServeJSON()
@@ -153,7 +168,7 @@ func (c *MainController) SignUp() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			c.appendLoginError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -184,7 +199,7 @@ func (c *MainController) SignUp() {
 	newUser.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
 	log.Println("hex: " + hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt))
 	if _, err := o.Insert(&newUser); err != nil {
-		c.appendError(&response, "Не удалось зарегистрироваться. Возможно, пользователь с таким именем уже существует", 400)
+		c.appendLoginError(&response, "Не удалось зарегистрироваться. Возможно, пользователь с таким именем уже существует", 400)
 		log.Println(err)
 	} else {
 		// Generating a token and sending it to a client
@@ -196,8 +211,30 @@ func (c *MainController) SignUp() {
 	c.ServeJSON()
 }
 
-func (c *MainController) GetUser(id int64) {
-
+func (c *MainController) GetUserInfo() {
+	var response GetUserInfoResponse
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.appendGetUserInfoError(&response, "Invalid token. Access denied", 401)
+		c.Ctx.Output.SetStatus(401)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		log.Println("Heya, " + payload["sub"].(string))
+		user := c.getUser(payload["sub"].(string))
+		log.Println(user)
+		response.User = UserInfo {
+                  Email:       &user.Email,
+                  Group:       &user.Group,
+                  FirstName:   &user.FirstName,
+                  SecondName:  &user.SecondName,
+                  LastName:    &user.LastName,
+                  Gender:      &user.Gender,
+		}
+		c.Data["json"] = response
+		c.ServeJSON()
+	}
 }
 
 func (c *MainController) getUser(email string) *models.User {
@@ -228,30 +265,71 @@ func (c *MainController) generateToken(username string) string {
 	return tokenString
 }
 
+func (c *MainController) validateToken() (jwt.MapClaims, error){
+	tokenString := c.Ctx.Input.Header("Authorization")
+	if tokenString == "" {
+		log.Println("Token not found")
+		return nil, errors.New("Couldn't find Authorization header")
+	}
+
+	token, err := jwt.Parse(tokenString[7:], func(token *jwt.Token) (interface{}, error) {
+	    return privateKey, nil
+	})
+
+	if token.Valid {
+			log.Println("Heya!")
+	    return token.Claims.(jwt.MapClaims), nil
+	} else if ve, ok := err.(*jwt.ValidationError); ok {
+	    if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+	        log.Println("That's not even a token")
+					return nil, err
+	    } else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+	        // Token is either expired or not active yet
+	        log.Println("Timing is everything")
+					return nil, err
+	    } else {
+	        log.Println("Couldn't handle this token:", err)
+					return nil, err
+	    }
+	} else {
+	    log.Println("Couldn't handle this token:", err)
+			return nil, err
+	}
+}
+
 // Checks that json field is string and appends an error into response if it isn't
 func (c *MainController) checkStringField(userProperty *string, field interface{}, response *LoginResponse, fieldName string) {
 	if checkedField, ok := field.(string); ok {
 		*userProperty = checkedField
 		log.Println(checkedField)
 	} else {
-		c.appendError(response, "Datatype error in " + fieldName, 400)
+		c.appendLoginError(response, "Datatype error in " + fieldName, 400)
 	}
 }
 
 func (c *MainController) checkIntField(userProperty *int64, field interface{}, response *LoginResponse, fieldName string) {
 	if stringField, ok := field.(string); ok {
 		if checkedField, err := strconv.ParseInt(stringField, 10, 64); err != nil {
-			c.appendError(response, "Datatype error in " + fieldName, 400)
+			c.appendLoginError(response, "Datatype error in " + fieldName, 400)
 		} else {
 			*userProperty = checkedField
 		}
 	} else {
-		c.appendError(response, "Datatype error in " + fieldName, 400)
+		c.appendLoginError(response, "Datatype error in " + fieldName, 400)
 	}
 }
 
 // Appends an error into the response body
-func (c *MainController) appendError(response *LoginResponse, message string, code float64) {
+func (c *MainController) appendLoginError(response *LoginResponse, message string, code float64) {
+	response.Errors = append(response.Errors, Error {
+		UserMessage: message,
+		Code: code,
+	})
+}
+
+// The same as previous but for get user response
+// Where are my generics Google?!
+func (c *MainController) appendGetUserInfoError(response *GetUserInfoResponse, message string, code float64) {
 	response.Errors = append(response.Errors, Error {
 		UserMessage: message,
 		Code: code,

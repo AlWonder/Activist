@@ -30,6 +30,7 @@ func init() {
 	log.Println(now)
 	log.Println(now.Location())
 	log.Println(now.Zone())
+
 }
 
 func main() {
@@ -54,7 +55,7 @@ func main() {
 	beego.InsertFilter("*", beego.BeforeRouter,cors.Allow(&cors.Options{
         AllowOrigins: []string{"*"},
         AllowMethods: []string{"GET", "DELETE", "POST", "PUT", "PATCH", "OPTIONS"},
-        AllowHeaders: []string{"Origin", "Access-Control-Allow-Origin", "Content-Type"},
+        AllowHeaders: []string{"Origin", "Access-Control-Allow-Origin", "Content-Type", "Authorization"},
         ExposeHeaders: []string{"Content-Length", "Access-Control-Allow-Origin"},
         AllowCredentials: true,
     }))
