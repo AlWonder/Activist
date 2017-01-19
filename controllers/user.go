@@ -113,7 +113,7 @@ func (c *MainController) Login() {
 	}
 
 	// Generating a token and sending it to a client
-	token := c.generateToken(user.Id, user.Group)
+	token := c.generateToken(user.Email)
 	response.IdToken = token
 
 	c.Data["json"] = response
@@ -188,7 +188,7 @@ func (c *MainController) SignUp() {
 		log.Println(err)
 	} else {
 		// Generating a token and sending it to a client
-		token := c.generateToken(newUser.Id, newUser.Group)
+		token := c.generateToken(newUser.Email)
 		response.IdToken = token
 	}
 
@@ -215,9 +215,10 @@ func (c *MainController) getUser(email string) *models.User {
 	return &user
 }
 
-func (c *MainController) generateToken(id, group int64) string {
+func (c *MainController) generateToken(username string) string {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-    "user_id": id,
+		"iss": "http://localhost:8080",
+    "sub": username,
 		"iat": time.Now().Unix(),
     "exp": time.Now().Unix() + 36000,
 	})
