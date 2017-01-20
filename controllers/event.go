@@ -1,15 +1,127 @@
 package controllers
 
 import (
-	"github.com/astaxie/beego"
-	"github.com/astaxie/beego/orm"
+	//"github.com/astaxie/beego"
 	"bee/activist/models"
+	"github.com/astaxie/beego/orm"
 	"log"
-	"time"
-	"github.com/astaxie/beego/validation"
+	//"time"
+	jwt "github.com/dgrijalva/jwt-go"
 	"strconv"
 )
 
+type GetEventResponse struct {
+	Event      *models.Event `json:"event"`
+	IsActivist bool          `json:"isActivist"`
+	IsJoined   bool          `json:"isJoined"`
+}
+
+func (c *MainController) QueryEvents() {
+	events := c.getAllEvents(1)
+	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
+func (c *MainController) GetEvent() {
+	var response GetEventResponse
+	response.IsActivist = false
+	response.IsJoined = false
+
+	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	var payload jwt.MapClaims
+	if payload, err = c.validateToken(); err != nil {
+		log.Println("No valid token found")
+	} else {
+		if user := c.getUserById(payload["sub"].(int64)); user != nil {
+			if user.Group == 1 {
+				response.IsActivist = true
+				response.IsJoined = c.isJoined(user.Id, id)
+			}
+		}
+	}
+
+	event := c.getEventById(id)
+	response.Event = event
+	c.Data["json"] = response
+	c.ServeJSON()
+}
+
+func (c *MainController) QueryUserEvents() {
+	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	events := c.getUserEvents(id)
+	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
+func (c *MainController) getAllEvents(limit int) *[]models.Event {
+	var events []models.Event
+
+	o := orm.NewOrm()
+
+	_, err := o.Raw(`SELECT events.*
+					 FROM events
+					 INNER JOIN users ON events.user_id=users.id
+					 WHERE users.group = 2 LIMIT ?, 10`,
+		limit).QueryRows(&events)
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	return &events
+}
+
+func (c *MainController) getUserEvents(userId int64) *[]models.Event {
+	var events []models.Event
+
+	o := orm.NewOrm()
+
+	_, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events)
+	if err != nil {
+		return nil
+	}
+	return &events
+}
+
+func (c *MainController) getEventById(id int64) *models.Event {
+	event := models.Event{Id: id}
+
+	o := orm.NewOrm()
+
+	err := o.Raw("SELECT * FROM events WHERE id = ?", id).QueryRow(&event)
+	if err != nil {
+		log.Fatal(err)
+		return nil
+	}
+	return &event
+}
+
+func (c *MainController) isJoined(user, event int64) bool {
+	o := orm.NewOrm()
+	userEvent := models.UserEvent{UserId: user, EventId: event}
+	err := o.Read(&userEvent, "user_id", "event_id")
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return false
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return false
+	}
+	return true
+}
+
+/*----- I will destroy everything under this string. But later. -----*/
+
+/*
 func (c *MainController) NewEvent() {
 	c.activeContent("events/new", "Новое событие", []string{}, []string{})
 	flash := beego.NewFlash()
@@ -290,49 +402,6 @@ func (c *MainController) belongsTo(eventId, user int64) bool {
 	return true
 }
 
-func (c *MainController) getEvents(userId int64) *[]models.Event {
-	var events []models.Event
-
-	o := orm.NewOrm()
-
-	_, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	return &events
-}
-
-func (c *MainController) getAllEvents(limit int) *[]models.Event {
-	var events []models.Event
-
-	o := orm.NewOrm()
-
-	_, err := o.Raw(`SELECT events.*
-					 FROM events
-					 INNER JOIN users ON events.user_id=users.id
-					 WHERE users.group = 2 LIMIT ?, 10`,
-					 limit).QueryRows(&events)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	return &events
-}
-
-func (c *MainController) getEventById(id int64) *models.Event {
-	event := models.Event{Id: id}
-
-	o := orm.NewOrm()
-
-	err := o.Raw("SELECT * FROM events WHERE id = ?", id).QueryRow(&event)
-	if err != nil {
-		log.Fatal(err)
-		return nil
-	}
-	return &event
-}
-
 func (c *MainController) getAcceptedEvents(user int64, limit int) *[]models.Event {
 
 	var events []models.Event
@@ -369,25 +438,11 @@ func (c *MainController) getParticipants(eventId int64) *[]models.User {
 	return &users
 }
 
-func (c *MainController) isJoined(user, event int64) bool {
-	o := orm.NewOrm()
-	userEvent := models.UserEvent{UserId: user, EventId: event}
-	err := o.Read(&userEvent, "user_id", "event_id")
 
-	//err := o.Raw("SELECT * FROM users WHERE login = ?", email).QueryRow(&user)
-
-	if err == orm.ErrNoRows {
-    	log.Println("No result found.")
-    	return false
-	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    return false
-	}
-	return true
-}
 
 func (c *MainController) addTag(name string) {
 	o := orm.NewOrm()
 	tag := models.Tag{Name: name}
 	o.Insert(&tag)
 }
+*/

@@ -9,7 +9,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/astaxie/beego/plugins/cors"
 	//"github.com/auth0/go-jwt-middleware"
-	"bee/activist/controllers"
+	//"bee/activist/controllers"
 	"time"
 )
 
@@ -34,18 +34,6 @@ func init() {
 }
 
 func main() {
-	/*jwtMiddleware := jwtmiddleware.New(jwtmiddleware.Options{
-    ValidationKeyGetter: func(token *jwt.Token) (interface{}, error) {
-      secret := os.Getenv("AUTH0_CLIENT_SECRET")
-      if secret == "" {
-        return nil, errors.New("AUTH0_CLIENT_SECRET is not set")
-      }
-      return secret, nil
-    },
-  })*/
-
-	beego.ErrorController(&controllers.ErrorController{})
-
 	beego.SetStaticPath("/img","static/images")
 	beego.SetStaticPath("/css","static/styles")
 	beego.SetStaticPath("/js","static/javascript")

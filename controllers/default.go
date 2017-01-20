@@ -4,8 +4,6 @@ import (
 	"github.com/astaxie/beego"
 	//"github.com/astaxie/beego/orm"
 	//"bee/activist/models"
-	"log"
-	"strconv"
 )
 
 type MainController struct {
@@ -17,31 +15,13 @@ func (c *MainController) Get() {
     c.Render()
 }
 
-func (c *MainController) QueryEvents() {
-	events := c.getAllEvents(1)
-	c.Data["json"] = &events
-	c.ServeJSON()
-}
-
-func (c *MainController) GetEvent() {
-	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-	if err != nil {
-			log.Fatal(err)
-			return
-	}
-
-	event := c.getEventById(id)
-	c.Data["json"] = &event
-	c.ServeJSON()
-}
-
 /**
 * Дальше идёт старый код, который по-хорошему больше не стоит использовать.
 * Я оставил его потому, что пока я переписываю логику работы сервера,
 * чтобы он работал только с JSON, мне нужно ориентироваться,
 * как я делал это раньше
 */
-
+/*
 func (c *MainController) getSessionInfo() map[string]interface{} {
     sess := c.GetSession("activist")
     if sess == nil {
@@ -106,7 +86,7 @@ func (c *MainController) activeBasicContent(view string) {
     c.TplName = view + ".tpl";
 }
 
-/*func (c *MainController) ViewEvent() {
+func (c *MainController) ViewEvent() {
     id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
     if err != nil {
         log.Fatal(err)
@@ -118,7 +98,7 @@ func (c *MainController) activeBasicContent(view string) {
     if m := c.getSessionInfo(); m != nil {
         c.Data["IsJoined"] = c.isJoined(m["id"].(int64), id)
     }
-}*/
+}
 
 func (c *MainController) ViewParticipants() {
     c.activeContent("events/participants", "Участники", []string{}, []string{})
@@ -179,3 +159,4 @@ func (c *MainController) AcceptedEvents() {
         c.ServeJSON()
     }
 }
+*/
