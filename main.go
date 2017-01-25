@@ -5,12 +5,12 @@ import (
 	//"bee/activist/models"
 	"github.com/astaxie/beego"
 	"github.com/astaxie/beego/orm"
-	"log"
+	//"log"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/astaxie/beego/plugins/cors"
 	//"github.com/auth0/go-jwt-middleware"
 	//"bee/activist/controllers"
-	"time"
+	//"time"
 )
 
 // Database settings
@@ -25,12 +25,6 @@ const (
 func init() {
 	orm.RegisterDriver("mysql", orm.DRMySQL)
 	orm.RegisterDataBase("default", "mysql", db_user + ":" + db_pw + "@tcp(127.0.0.1:3306)/" + db_name + "?charset=utf8&parseTime=True")
-	orm.DefaultTimeLoc = time.UTC
-	now := time.Now()
-	log.Println(now)
-	log.Println(now.Location())
-	log.Println(now.Zone())
-
 }
 
 func main() {

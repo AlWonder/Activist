@@ -4,16 +4,34 @@ import (
 	//"github.com/astaxie/beego"
 	"bee/activist/models"
 	"github.com/astaxie/beego/orm"
+	"github.com/astaxie/beego/validation"
 	"log"
-	//"time"
+	"time"
+	"encoding/json"
 	jwt "github.com/dgrijalva/jwt-go"
 	"strconv"
 )
 
 type GetEventResponse struct {
 	Event      *models.Event `json:"event"`
+	Tags       *[]models.Tag `json:"tags"`
 	IsActivist bool          `json:"isActivist"`
 	IsJoined   bool          `json:"isJoined"`
+}
+
+type EventData struct {
+
+}
+
+type AddEventResponse struct {
+	Ok         bool          `json:"ok"`
+	Errors     []Error       `json:"errors"`
+	EventId    int64         `json:"eventId"`
+}
+
+type AddEventRequest struct {
+	Event      map[string]interface{}  `json:"event"`
+	Tags       []string      `json:"tags"`
 }
 
 func (c *MainController) QueryEvents() {
@@ -37,7 +55,7 @@ func (c *MainController) GetEvent() {
 	if payload, err = c.validateToken(); err != nil {
 		log.Println("No valid token found")
 	} else {
-		if user := c.getUserById(payload["sub"].(int64)); user != nil {
+		if user := c.getUserById(int64(payload["sub"].(float64))); user != nil {
 			if user.Group == 1 {
 				response.IsActivist = true
 				response.IsJoined = c.isJoined(user.Id, id)
@@ -46,7 +64,9 @@ func (c *MainController) GetEvent() {
 	}
 
 	event := c.getEventById(id)
+	tags := c.getTagsByEventId(event.Id)
 	response.Event = event
+	response.Tags = tags
 	c.Data["json"] = response
 	c.ServeJSON()
 }
@@ -59,6 +79,128 @@ func (c *MainController) QueryUserEvents() {
 	}
 	events := c.getUserEvents(id)
 	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
+func (c *MainController) AddEvent() {
+	var response AddEventResponse
+	response.Ok = false
+	var userId, eventId int64
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
+		c.Ctx.Output.SetStatus(401)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 {
+			c.appendAddEventError(&response, "User is not allowed to create events", 403)
+			c.Ctx.Output.SetStatus(403)
+			c.Data["json"] = response
+			c.ServeJSON()
+			return
+		}
+		userId = user.Id
+	}
+
+	// Parse the request
+	var request AddEventRequest
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.appendAddEventError(&response, "Request error", 400)
+		c.Ctx.Output.SetStatus(400)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+	var event models.Event
+	event.UserId = userId
+	log.Println(request)
+
+	c.checkEventStringField(&event.Title, request.Event["title"], &response, "Title")
+	c.checkEventStringField(&event.Description, request.Event["description"], &response, "Description")
+
+	// Checking eventDate param
+	// I hate Go already. Look at this piece of crap! It's for only one damn field!
+	if eventDateString, ok := request.Event["eventDate"].(string); ok {
+		if eventDate, err := time.Parse("2006-01-02", eventDateString); err != nil {
+			log.Println("NewEvent, eventDate: ", err)
+			c.appendAddEventError(&response, "Datatype error in EventDate", 400)
+		} else {
+			event.EventDate = eventDate
+		}
+	} else {
+		c.appendAddEventError(&response, "Datatype error in EventDate", 400)
+	}
+
+	// And another one for time. Give me a break...
+	if eventTimeString, ok := request.Event["eventTime"].(string); ok {
+		if eventTime, err := time.Parse("15:04", eventTimeString); err != nil {
+			log.Println("NewEvent, eventTime: ", err)
+			c.appendAddEventError(&response, "Datatype error in EventTime", 400)
+		} else {
+			event.EventTime = eventTime
+		}
+	}
+
+	if volonteursBool, ok := request.Event["volonteurs"].(bool); ok {
+		event.Volonteurs = volonteursBool
+	}
+
+	// Validation
+	valid := validation.Validation{}
+	valid.Required(event.Title, "title")
+	valid.Required(event.Description, "description")
+	valid.Required(event.EventDate, "event_date")
+
+	if valid.HasErrors() {
+		for _, err := range valid.Errors {
+			c.appendAddEventError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			log.Println("Error on " + err.Key)
+		}
+	}
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	o := orm.NewOrm()
+
+	// Inserting an event into the database
+	if id, err := o.Insert(&event); err != nil {
+		c.appendAddEventError(&response, "Не удалось добавить новость.", 400)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		eventId = id
+	}
+	log.Println(eventId)
+
+	// Tags. It's gonna be funny...
+	log.Println(request.Tags)
+	tagIds := c.addTags(request.Tags)
+
+	if ok := c.addEventTags(eventId, tagIds); !ok {
+		c.appendAddEventError(&response, "Ошибка при привязке тегов", 400)
+	}
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+	response.Ok = true
+	response.EventId = eventId
+	c.Data["json"] = response
 	c.ServeJSON()
 }
 
@@ -81,11 +223,8 @@ func (c *MainController) getAllEvents(limit int) *[]models.Event {
 
 func (c *MainController) getUserEvents(userId int64) *[]models.Event {
 	var events []models.Event
-
 	o := orm.NewOrm()
-
-	_, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events)
-	if err != nil {
+	if _, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events); err != nil {
 		return nil
 	}
 	return &events
@@ -119,18 +258,25 @@ func (c *MainController) isJoined(user, event int64) bool {
 	return true
 }
 
+func (c *MainController) appendAddEventError(response *AddEventResponse, message string, code float64) {
+	response.Errors = append(response.Errors, Error{
+		UserMessage: message,
+		Code:        code,
+	})
+}
+
+func (c *MainController) checkEventStringField(property *string, field interface{}, response *AddEventResponse, fieldName string) {
+	if checkedField, ok := field.(string); ok {
+		*property = checkedField
+		log.Println(checkedField)
+	} else {
+		c.appendAddEventError(response, "Datatype error in "+fieldName, 400)
+	}
+}
 /*----- I will destroy everything under this string. But later. -----*/
 
 /*
 func (c *MainController) NewEvent() {
-	c.activeContent("events/new", "Новое событие", []string{}, []string{})
-	flash := beego.NewFlash()
-
-	m := c.getSessionInfo()
-    if m == nil {
-        c.Redirect("/home", 302)
-    }
-
 	var org int64
 	org = 2
 	if m["group"] != org {

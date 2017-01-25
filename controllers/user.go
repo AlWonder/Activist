@@ -19,7 +19,7 @@ func (c *MainController) GetUserInfo() {
 		c.ServeJSON()
 		return
 	} else {
-		user := c.getUserById(payload["sub"].(int64))
+		user := c.getUserById(int64(payload["sub"].(float64)))
 		log.Println(user)
 		response.User = UserInfo {
                   Email:       &user.Email,
@@ -63,7 +63,6 @@ func (c *MainController) getUserById(id int64) *models.User {
 	}
 	return &user
 }
-
 
 /*----- I know it's a mess below. I'll fix it. ----- */
 /*

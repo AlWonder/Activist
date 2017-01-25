@@ -42,7 +42,7 @@ type Image struct {
 }
 
 type Tag struct {
-	Id             int          `orm:"column(id);auto" json:"id"`
+	Id             int64          `orm:"column(id);auto" json:"id"`
 	Name           string       `orm:"column(name);size(30);unique" json:"name"`
 }
 
