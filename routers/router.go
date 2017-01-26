@@ -10,6 +10,7 @@ func init() {
 
 	// JSON data
 	beego.Router("/tags", &controllers.MainController{}, "get:QueryTags")
+	beego.Router("/tags/:tag", &controllers.MainController{}, "get:QueryEventsByTag")
 	beego.Router("/events", &controllers.MainController{}, "get:QueryEvents;post:AddEvent")
 	beego.Router("/events/:id([0-9]+", &controllers.MainController{}, "get:GetEvent")
 	beego.Router("/login", &controllers.MainController{}, "post:Login")

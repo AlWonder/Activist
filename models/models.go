@@ -3,6 +3,7 @@ package models
 import (
 	"github.com/astaxie/beego/orm"
 	"time"
+	"encoding/json"
 )
 
 type Event struct {
@@ -14,6 +15,19 @@ type Event struct {
 	EventDate      time.Time    `orm:"column(event_date);type(date)" json:"event_date"`
 	EventTime      time.Time    `orm:"column(event_time);type(datetime)" json:"event_time"`
 	Volonteurs     bool         `orm:"column(volonteurs);default(0)" json:"volonteurs"`
+}
+
+func (e *Event) MarshalJSON() ([]byte, error) {
+    type Alias Event
+    return json.Marshal(&struct {
+        *Alias
+				EventDate string `json:"event_date"`
+        EventTime string `json:"event_time"`
+    }{
+        Alias: (*Alias)(e),
+        EventDate: e.EventDate.Format("1/2/2006"),
+        EventTime: e.EventTime.Format("15:04"),
+    })
 }
 
 type EventTag struct {

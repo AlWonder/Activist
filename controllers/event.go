@@ -3,35 +3,36 @@ package controllers
 import (
 	//"github.com/astaxie/beego"
 	"bee/activist/models"
+	"encoding/json"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
-	"log"
-	"time"
-	"encoding/json"
 	jwt "github.com/dgrijalva/jwt-go"
+	"log"
 	"strconv"
+	"time"
 )
 
 type GetEventResponse struct {
 	Event      *models.Event `json:"event"`
 	Tags       *[]models.Tag `json:"tags"`
+	IsTimeSet  bool          `json:"isTimeSet"`
 	IsActivist bool          `json:"isActivist"`
 	IsJoined   bool          `json:"isJoined"`
 }
 
-type EventData struct {
-
+type ErrorResponse struct {
+	Errors []Error `json:"errors"`
 }
 
 type AddEventResponse struct {
-	Ok         bool          `json:"ok"`
-	Errors     []Error       `json:"errors"`
-	EventId    int64         `json:"eventId"`
+	Ok      bool    `json:"ok"`
+	Errors  []Error `json:"errors"`
+	EventId int64   `json:"eventId"`
 }
 
 type AddEventRequest struct {
-	Event      map[string]interface{}  `json:"event"`
-	Tags       []string      `json:"tags"`
+	Event map[string]interface{} `json:"event"`
+	Tags  []string               `json:"tags"`
 }
 
 func (c *MainController) QueryEvents() {
@@ -40,14 +41,29 @@ func (c *MainController) QueryEvents() {
 	c.ServeJSON()
 }
 
+func (c *MainController) QueryEventsByTag() {
+	log.Println(c.Ctx.Input.Param(":tag"))
+	events := c.getEventsByTag(c.Ctx.Input.Param(":tag"))
+	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
 func (c *MainController) GetEvent() {
 	var response GetEventResponse
 	response.IsActivist = false
 	response.IsJoined = false
+	response.IsTimeSet = true
 
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
-		log.Fatal(err)
+		c.Ctx.Output.SetStatus(400)
+		var errorResponse ErrorResponse
+		errorResponse.Errors = append(errorResponse.Errors, Error{
+			UserMessage: "Bad request",
+			Code:        400,
+		})
+		c.Data["json"] = errorResponse
+		c.ServeJSON()
 		return
 	}
 
@@ -64,6 +80,20 @@ func (c *MainController) GetEvent() {
 	}
 
 	event := c.getEventById(id)
+	if event == nil {
+		c.Ctx.Output.SetStatus(404)
+		var errorResponse ErrorResponse
+		errorResponse.Errors = append(errorResponse.Errors, Error{
+			UserMessage: "Event not found",
+			Code:        404,
+		})
+		c.Data["json"] = errorResponse
+		c.ServeJSON()
+		return
+	}
+	if event.EventTime.IsZero() {
+		response.IsTimeSet = false
+	}
 	tags := c.getTagsByEventId(event.Id)
 	response.Event = event
 	response.Tags = tags
@@ -124,8 +154,9 @@ func (c *MainController) AddEvent() {
 
 	// Checking eventDate param
 	// I hate Go already. Look at this piece of crap! It's for only one damn field!
+	loc, _ := time.LoadLocation("Etc/GMT-9")
 	if eventDateString, ok := request.Event["eventDate"].(string); ok {
-		if eventDate, err := time.Parse("2006-01-02", eventDateString); err != nil {
+		if eventDate, err := time.ParseInLocation("2006-01-02", eventDateString, loc); err != nil {
 			log.Println("NewEvent, eventDate: ", err)
 			c.appendAddEventError(&response, "Datatype error in EventDate", 400)
 		} else {
@@ -137,13 +168,15 @@ func (c *MainController) AddEvent() {
 
 	// And another one for time. Give me a break...
 	if eventTimeString, ok := request.Event["eventTime"].(string); ok {
-		if eventTime, err := time.Parse("15:04", eventTimeString); err != nil {
+		if eventTime, err := time.ParseInLocation("15:04", eventTimeString, loc); err != nil {
 			log.Println("NewEvent, eventTime: ", err)
 			c.appendAddEventError(&response, "Datatype error in EventTime", 400)
 		} else {
 			event.EventTime = eventTime
 		}
 	}
+
+	log.Println(event.EventTime)
 
 	if volonteursBool, ok := request.Event["volonteurs"].(bool); ok {
 		event.Volonteurs = volonteursBool
@@ -215,7 +248,25 @@ func (c *MainController) getAllEvents(limit int) *[]models.Event {
 					 WHERE users.group = 2 LIMIT ?, 10`,
 		limit).QueryRows(&events)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return nil
+	}
+	return &events
+}
+
+func (c *MainController) getEventsByTag(tag string) *[]models.Event {
+	var events []models.Event
+
+	o := orm.NewOrm()
+
+	_, err := o.Raw(`SELECT events.*
+					 FROM events
+					 INNER JOIN (events_tags INNER JOIN tags ON events_tags.tag_id = tags.id)
+					 ON events.id = events_tags.event_id
+					 WHERE tags.name = ?`,
+		tag).QueryRows(&events)
+	if err != nil {
+		log.Println(err)
 		return nil
 	}
 	return &events
@@ -237,7 +288,7 @@ func (c *MainController) getEventById(id int64) *models.Event {
 
 	err := o.Raw("SELECT * FROM events WHERE id = ?", id).QueryRow(&event)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
 		return nil
 	}
 	return &event
@@ -273,69 +324,10 @@ func (c *MainController) checkEventStringField(property *string, field interface
 		c.appendAddEventError(response, "Datatype error in "+fieldName, 400)
 	}
 }
+
 /*----- I will destroy everything under this string. But later. -----*/
 
 /*
-func (c *MainController) NewEvent() {
-	var org int64
-	org = 2
-	if m["group"] != org {
-		c.Redirect("/home", 302)
-	}
-
-	if c.Ctx.Input.Method() == "POST" {
-		name := c.Input().Get("event-name")
-		description := c.Input().Get("description")
-		createDate := time.Now()
-		eventDate, err := time.Parse("2006-01-02", c.Input().Get("event-date"))
-		if err != nil {
-			log.Println("NewEvent, eventDate: ", err)
-			flash.Error("Wrong date.")
-			flash.Store(&c.Controller)
-			return
-		}
-		eventTime, err := time.Parse("15:04", c.Input().Get("event-time"))
-		if err != nil {
-			log.Println("NewEvent, eventTime: ", err)
-		}
-
-		log.Println("name: " + name)
-		log.Println("description: " + description)
-		log.Println("addDate: " + createDate.Format("2006-01-02"))
-		log.Println("eventDate: " + eventDate.Format("2006-01-02"))
-		log.Println("eventTime: " + eventTime.Format("2006-01-02 15:04:05"))
-
-		valid := validation.Validation{}
-		valid.MaxSize(name, 120, "name")
-		valid.Required(name, "name")
-		valid.Required(eventDate, "event-date")
-
-		if valid.HasErrors() {
-			errormap := []string{}
-			log.Println("Validation error(s)")
-			for _, err := range valid.Errors {
-				errormap = append(errormap, "Validation failed on "+err.Key+": "+err.Message+"\n")
-			}
-			c.Data["Errors"] = errormap
-			return
-		}
-
-		event := models.Event{UserId: m["id"].(int64), Name: name, Description: description,
-							  CreateDate: createDate, EventDate: eventDate, EventTime: eventTime}
-		o := orm.NewOrm()
-
-
-		_, err = o.Insert(&event)
-		if err != nil {
-			log.Println("NewEvent, data insertion: ", err)
-			flash.Error("The data wasn't inserted.")
-			flash.Store(&c.Controller)
-			return
-		}
-		c.Redirect("/home", 302)
-	}
-}
-
 func (c *MainController) EditEvent() {
 	c.activeContent("events/edit", "Изменить событие", []string{}, []string{})
 	flash := beego.NewFlash()
