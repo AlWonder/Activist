@@ -2,7 +2,7 @@ package controllers
 
 import (
 	//"github.com/astaxie/beego"
-	"bee/activist/models"
+	"activist_api/models"
 	"encoding/json"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
@@ -14,10 +14,16 @@ import (
 
 type GetEventResponse struct {
 	Event      *models.Event `json:"event"`
-	Tags       *[]models.Tag `json:"tags"`
+	Tags       *[]string     `json:"tags"`
 	IsTimeSet  bool          `json:"isTimeSet"`
 	IsActivist bool          `json:"isActivist"`
 	IsJoined   bool          `json:"isJoined"`
+}
+
+type EditEventRequest struct {
+	Event        models.Event `json:"event"`
+	AddedTags    []string `json:"addedTags"`
+	RemovedTags  []string `json:"removedTags"`
 }
 
 type ErrorResponse struct {
@@ -235,6 +241,182 @@ func (c *MainController) AddEvent() {
 	response.EventId = eventId
 	c.Data["json"] = response
 	c.ServeJSON()
+}
+
+func (c *MainController) EditEvent() {
+	var response AddEventResponse
+	/*response.Ok = false
+	var userId, eventId int64
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
+		c.Ctx.Output.SetStatus(401)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 {
+			c.appendAddEventError(&response, "User is not allowed to edit events", 403)
+			c.Ctx.Output.SetStatus(403)
+			c.Data["json"] = response
+			c.ServeJSON()
+			return
+		}
+		userId = user.Id
+	}
+
+	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Invalid request", 401)
+		c.Ctx.Output.SetStatus(401)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}*/
+
+	var request EditEventRequest
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &request)
+	if err != nil {
+		log.Println(err)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		log.Println(request)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	/*o := orm.NewOrm()
+
+	event := models.Event{Id: eventId}
+	err = o.Read(&event)
+	if err == orm.ErrNoRows {
+		log.Println(err)
+		c.appendAddEventError(&response, "No such event", 404)
+		c.Ctx.Output.SetStatus(404)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else if err == orm.ErrMissPK {
+		log.Println(err)
+		c.appendAddEventError(&response, "No primary key found", 404)
+		c.Ctx.Output.SetStatus(404)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	if event.UserId != userId {
+		log.Println(err)
+		c.appendAddEventError(&response, "You are not allowed to edit this event", 403)
+		c.Ctx.Output.SetStatus(403)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	// Parse the request
+	var request AddEventRequest
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		c.appendAddEventError(&response, "Request error", 400)
+		c.Ctx.Output.SetStatus(400)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+	log.Println(request)
+
+	c.checkEventStringField(&event.Title, request.Event["title"], &response, "Title")
+	c.checkEventStringField(&event.Description, request.Event["description"], &response, "Description")
+
+	// Checking eventDate param
+	// I hate Go already. Look at this piece of crap! It's for only one damn field!
+	loc, _ := time.LoadLocation("Etc/GMT-9")
+	if eventDateString, ok := request.Event["eventDate"].(string); ok {
+		if eventDate, err := time.ParseInLocation("2006-01-02", eventDateString, loc); err != nil {
+			log.Println("NewEvent, eventDate: ", err)
+			c.appendAddEventError(&response, "Datatype error in EventDate", 400)
+		} else {
+			event.EventDate = eventDate
+		}
+	} else {
+		c.appendAddEventError(&response, "Datatype error in EventDate", 400)
+	}
+
+	// And another one for time. Give me a break...
+	if eventTimeString, ok := request.Event["eventTime"].(string); ok {
+		if eventTime, err := time.ParseInLocation("15:04", eventTimeString, loc); err != nil {
+			log.Println("NewEvent, eventTime: ", err)
+			c.appendAddEventError(&response, "Datatype error in EventTime", 400)
+		} else {
+			event.EventTime = eventTime
+		}
+	}
+
+	log.Println(event.EventTime)
+
+	if volonteursBool, ok := request.Event["volonteurs"].(bool); ok {
+		event.Volonteurs = volonteursBool
+	}
+
+	// Validation
+	valid := validation.Validation{}
+	valid.Required(event.Title, "title")
+	valid.Required(event.Description, "description")
+	valid.Required(event.EventDate, "event_date")
+
+	if valid.HasErrors() {
+		for _, err := range valid.Errors {
+			c.appendAddEventError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			log.Println("Error on " + err.Key)
+		}
+	}
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while editing an event")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+
+	// Inserting an event into the database
+	if id, err := o.Update(&event); err != nil {
+		c.appendAddEventError(&response, "Не удалось изменить новость.", 400)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		eventId = id
+	}
+	log.Println(eventId)
+
+	// Tags
+	log.Println(request.Tags)
+	tagIds := c.addTags(request.Tags)
+
+	if ok := c.addEventTags(eventId, tagIds); !ok {
+		c.appendAddEventError(&response, "Ошибка при привязке тегов", 400)
+	}
+
+	// Checking for having errors
+	if response.Errors != nil {
+		log.Println("Errors while singing up")
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+	response.Ok = true
+	response.EventId = eventId
+	c.Data["json"] = response
+	c.ServeJSON()
+	*/
 }
 
 func (c *MainController) getAllEvents(limit int) *[]models.Event {

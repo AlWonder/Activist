@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	"bee/activist/models"
-	pk "bee/activist/utilities/pbkdf2"
+	"activist_api/models"
+	pk "activist_api/utilities/pbkdf2"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -55,7 +55,7 @@ func (c *MainController) Login() {
 
 	// Checking if username and password fields are correct
 	var email, password string
-	if field, ok := request["username"].(string); ok {
+	if field, ok := request["email"].(string); ok {
 		email = field
 	} else {
 		c.appendLoginError(&response, "Bad username field", 400)
@@ -195,7 +195,6 @@ func (c *MainController) SignUp() {
 	o := orm.NewOrm()
 
 	newUser.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
-	log.Println("hex: " + hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt))
 	if _, err := o.Insert(&newUser); err != nil {
 		c.appendLoginError(&response, "Не удалось зарегистрироваться. Возможно, пользователь с таким именем уже существует", 400)
 		log.Println(err)
@@ -242,7 +241,6 @@ func (c *MainController) validateToken() (jwt.MapClaims, error) {
 	}
 
 	if token.Valid {
-		log.Println("Heya!")
 		return token.Claims.(jwt.MapClaims), nil
 	} else if ve, ok := err.(*jwt.ValidationError); ok {
 		if ve.Errors&jwt.ValidationErrorMalformed != 0 {

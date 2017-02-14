@@ -2,11 +2,9 @@ package controllers
 
 import (
 	"log"
-	//pk "bee/activist/utilities/pbkdf2"
 	//"github.com/astaxie/beego"
 	"github.com/astaxie/beego/orm"
-	"bee/activist/models"
-	//"encoding/hex"
+	"activist_api/models"
 )
 
 func (c *MainController) GetUserInfo() {

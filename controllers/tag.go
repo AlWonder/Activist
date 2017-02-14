@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"github.com/astaxie/beego/orm"
-	"bee/activist/models"
+	"activist_api/models"
 	"log"
 	"strings"
 )
@@ -14,8 +14,8 @@ func(c *MainController) QueryTags() {
 	c.ServeJSON()
 }
 
-func (c *MainController) getTags(tag string) *[]models.Tag {
-	var tags []models.Tag
+func (c *MainController) getTags(tag string) *[]string {
+	var tags []string
 
 	o := orm.NewOrm()
 	tag = strings.TrimSpace(tag)
@@ -25,7 +25,7 @@ func (c *MainController) getTags(tag string) *[]models.Tag {
 
 	like := "%" + tag + "%"
 
-	_, err := o.Raw(`SELECT *
+	_, err := o.Raw(`SELECT name
 					 FROM tags
 					 WHERE name LIKE ?`, like).QueryRows(&tags)
 	if err != nil {
@@ -76,10 +76,10 @@ func (c *MainController) addEventTags(eventId int64, tagIds []int64) bool {
 	return ok
 }
 
-func (c *MainController) getTagsByEventId(id int64) *[]models.Tag {
-	var tags []models.Tag
+func (c *MainController) getTagsByEventId(id int64) *[]string {
+	var tags []string
 	o := orm.NewOrm()
-	if _, err := o.Raw(`SELECT *
+	if _, err := o.Raw(`SELECT name
 		FROM tags
 		INNER JOIN events_tags ON tags.id = events_tags.tag_id
 		WHERE event_id = ?`, id).QueryRows(&tags); err != nil {
