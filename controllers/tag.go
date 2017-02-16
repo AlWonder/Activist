@@ -62,7 +62,10 @@ func (c *MainController) deleteEventTags(eventId int64, tags []string) error {
 	o := orm.NewOrm()
 	for _, tag := range tags {
 		log.Println("Deleting " + tag)
-		if _, err := o.Delete(&models.Tag{Name: tag}); err != nil {
+		if _, err := o.Raw(`DELETE e.*
+			FROM events_tags e
+			INNER JOIN tags t ON t.id = e.tag_id
+			WHERE t.name = ? AND e.event_id = ?`, tag, eventId).Exec(); err != nil {
 			return err
 		}
 	}

@@ -212,7 +212,7 @@ func (c *MainController) AddEvent() {
 func (c *MainController) EditEvent() {
 	var response AddEventResponse
 	response.Ok = false
-	var userId, eventId int64
+	var userId int64
 
 	if payload, err := c.validateToken(); err != nil {
 		log.Println(err)
@@ -242,12 +242,10 @@ func (c *MainController) EditEvent() {
 		return
 	}
 
-	log.Println(request)
-
 	o := orm.NewOrm()
 
 	if request.Event.UserId != userId {
-		log.Println(err)
+		log.Println("User is not allowed to edit the event")
 		c.appendAddEventError(&response, "You are not allowed to edit this event", 403)
 		c.Ctx.Output.SetStatus(403)
 		c.Data["json"] = response
@@ -285,18 +283,18 @@ func (c *MainController) EditEvent() {
 		c.Data["json"] = response
 		c.ServeJSON()
 		return
-	} else {
-		eventId = request.Event.Id
 	}
-	log.Println(eventId)
 
 	// Tags
-	/*log.Println(request.Tags)
+	if err := c.deleteEventTags(request.Event.Id, request.RemovedTags); err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Не удалось удалить теги.", 400)
+	}
 
-	tagIds := c.addTags(request.Tags)
+	tagIds := c.addTags(request.AddedTags)
 	if ok := c.addEventTags(request.Event.Id, tagIds); !ok {
 		c.appendAddEventError(&response, "Ошибка при привязке тегов", 400)
-	}*/
+	}
 
 	// Checking for having errors
 	if response.Errors != nil {
@@ -306,7 +304,69 @@ func (c *MainController) EditEvent() {
 		return
 	}
 	response.Ok = true
-	response.EventId = eventId
+	response.EventId = request.Event.Id
+	c.Data["json"] = response
+	c.ServeJSON()
+}
+
+func (c *MainController) DeleteEvent() {
+	var response AddEventResponse
+	response.Ok = false
+	var eventId, userId int64
+
+	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		c.Ctx.Output.SetStatus(400)
+		var errorResponse ErrorResponse
+		errorResponse.Errors = append(errorResponse.Errors, Error{
+			UserMessage: "Bad request",
+			Code:        400,
+		})
+		c.Data["json"] = errorResponse
+		c.ServeJSON()
+		return
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
+		c.Ctx.Output.SetStatus(401)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 {
+			c.appendAddEventError(&response, "User is not allowed to delete events", 403)
+			c.Ctx.Output.SetStatus(403)
+			c.Data["json"] = response
+			c.ServeJSON()
+			return
+		}
+		userId = user.Id
+	}
+
+	if !c.eventBelongsToUser(eventId, userId) {
+		log.Println("User is not allowed to delete the event")
+		c.appendAddEventError(&response, "You are not allowed to delete this event", 403)
+		c.Ctx.Output.SetStatus(403)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	o := orm.NewOrm()
+
+	if _, err := o.Delete(&models.Event{Id: eventId}); err != nil {
+		log.Println(err)
+		c.appendAddEventError(&response, "Couldn't delete the event", 403)
+		c.Ctx.Output.SetStatus(403)
+		c.Data["json"] = response
+		c.ServeJSON()
+		return
+	}
+
+	response.Ok = true
 	c.Data["json"] = response
 	c.ServeJSON()
 }
@@ -383,6 +443,22 @@ func (c *MainController) isJoined(user, event int64) bool {
 	return true
 }
 
+
+func (c *MainController) eventBelongsToUser(eventId, userId int64) bool {
+	o := orm.NewOrm()
+	event := models.Event{Id: eventId, UserId: userId}
+	err := o.Read(&event, "id", "user_id")
+
+	if err == orm.ErrNoRows {
+    	log.Println("No result found.")
+    	return false
+	} else if err == orm.ErrMissPK {
+	    log.Println("No primary key found.")
+	    return false
+	}
+	return true
+}
+
 func (c *MainController) appendAddEventError(response *AddEventResponse, message string, code float64) {
 	response.Errors = append(response.Errors, Error{
 		UserMessage: message,
@@ -402,102 +478,6 @@ func (c *MainController) checkEventStringField(property *string, field interface
 /*----- I will destroy everything under this string. But later. -----*/
 
 /*
-func (c *MainController) EditEvent() {
-	c.activeContent("events/edit", "Изменить событие", []string{}, []string{})
-	flash := beego.NewFlash()
-	sess := c.GetSession("activist")
-	if sess == nil {
-		c.Redirect("/home", 302)
-	}
-	m := sess.(map[string]interface{})
-	var org int64
-	org = 2
-	if m["group"] != org {
-		c.Redirect("/profile", 302)
-	}
-
-	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-    if err != nil {
-        log.Println("EditEvent: ", err)
-        c.Abort("401")
-    }
-
-	o := orm.NewOrm()
-
-	event := models.Event{Id: eventId}
-	err = o.Read(&event)
-	if err == orm.ErrNoRows {
-	    log.Println("No result found.")
-	    c.Abort("404")
-	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    c.Abort("404")
-	}
-
-    log.Println(event)
-    if event.UserId != m["id"].(int64) {
-    	c.Abort("403")
-    }
-
-    if c.Ctx.Input.Method() == "GET" {
-	    c.Data["Name"] = event.Name
-		c.Data["Description"] = event.Description
-		c.Data["EventDate"] = event.EventDate.Format("2006-01-02")
-		if event.EventTime.IsZero() {
-			c.Data["EventTime"] = ""
-		} else {
-			c.Data["EventTime"] = event.EventTime.Format("15:04")
-		}
-
-	} else if c.Ctx.Input.Method() == "POST" {
-		name := c.Input().Get("event-name")
-		description := c.Input().Get("description")
-		eventDate, err := time.Parse("2006-01-02", c.Input().Get("event-date"))
-		if err != nil {
-			log.Println("NewEvent, eventDate: ", err)
-			flash.Error("Wrong date.")
-			flash.Store(&c.Controller)
-			return
-		}
-
-		eventTime, err := time.Parse("15:04", c.Input().Get("event-time"))
-		if err != nil {
-			log.Println("NewEvent, eventTime: ", err)
-		}
-
-		log.Println("name: " + name)
-		log.Println("description: " + description)
-		log.Println("eventDate: " + eventDate.Format("2006-01-02"))
-		log.Println("eventTime: " + eventTime.Format("2006-01-02 15:04:05"))
-
-		valid := validation.Validation{}
-		valid.MaxSize(name, 120, "name")
-		valid.Required(name, "name")
-		valid.Required(eventDate, "event-date")
-
-		if valid.HasErrors() {
-			errormap := []string{}
-			log.Println("EditEvent: Validation error(s)")
-			for _, err := range valid.Errors {
-				errormap = append(errormap, "Validation failed on "+err.Key+": "+err.Message+"\n")
-			}
-			c.Data["Errors"] = errormap
-			return
-		}
-
-		event.Name = name
-		event.Description = description
-		event.EventDate = eventDate
-		event.EventTime = eventTime
-		if _, err := o.Update(&event); err != nil {
-	        log.Println("EditEvent< data update: ", err)
-	        flash.Error("The data wasn't updated.")
-			flash.Store(&c.Controller)
-			return
-	    }
-	    c.Redirect("/profile", 302)
-	}
-}
 
 func (c *MainController) JoinEvent() {
 	c.activeContent("events/join", "", []string{}, []string{})
