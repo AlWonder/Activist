@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/astaxie/beego/orm"
 	"time"
+	"errors"
 )
 
 type Event struct {
@@ -19,6 +20,7 @@ type Event struct {
 
 func (e *Event) MarshalJSON() ([]byte, error) {
 	type Alias Event
+	loc, _ := time.LoadLocation("Etc/GMT")
 	return json.Marshal(&struct {
 		*Alias
 		EventDate string `json:"eventDate"`
@@ -26,7 +28,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 	}{
 		Alias:     (*Alias)(e),
 		EventDate: e.EventDate.Format("2006-01-02"),
-		EventTime: e.EventTime.Format("15:04"),
+		EventTime: e.EventTime.In(loc).Format("15:04"),
 	})
 }
 
@@ -38,14 +40,44 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 	}
 
 	for k, v := range rawStrings {
-		if k == "eventDate" {
+		switch k {
+		case "id":
+			if id, ok := v.(float64); !ok {
+				return errors.New("Bad id field")
+			} else {
+				e.Id = int64(id)
+			}
+		case "userId":
+			if id, ok := v.(float64); !ok {
+				return errors.New("Bad userId field")
+			} else {
+				e.UserId = int64(id)
+			}
+		case "title":
+			if title, ok := v.(string); !ok {
+				return errors.New("Bad title field")
+			} else {
+				e.Title = title
+			}
+		case "description":
+			if d, ok := v.(string); !ok {
+				return errors.New("Bad description field")
+			} else {
+				e.Description = d
+			}
+		case "createDate":
+			if createDate, err := time.Parse(time.RFC3339, v.(string)); err != nil {
+				return err
+			} else {
+				e.CreateDate = createDate
+			}
+		case "eventDate":
 			if eventDate, err := time.Parse("2006-01-02", v.(string)); err != nil {
 				return err
 			} else {
 				e.EventDate = eventDate
 			}
-		}
-		if k == "eventTime" {
+		case "eventTime":
 			if timeString, ok := v.(string); ok {
 				if eventTime, err := time.Parse("15:04", timeString); err != nil {
 					e.EventTime = time.Time{}
@@ -58,18 +90,6 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 		}
 	}
 	return
-
-	/*type Alias Event
-	    return json.Unmarshal(request, &struct {
-	        *Alias
-					EventDate string `json:"eventDate"`
-	        EventTime string `json:"eventTime"`
-	    }{
-	        Alias: (*Alias)(e),
-					EventDate: time.Parse("2006-01-02", e.EventDate),
-	        //EventDate: e.EventDate.Format("2006-01-02"),
-	        EventTime: e.EventTime.Format("15:04"),
-	    })*/
 }
 
 type EventTag struct {

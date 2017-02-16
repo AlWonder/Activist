@@ -58,6 +58,17 @@ func (c *MainController) addTags(tags []string) []int64 {
 	return tagIds
 }
 
+func (c *MainController) deleteEventTags(eventId int64, tags []string) error {
+	o := orm.NewOrm()
+	for _, tag := range tags {
+		log.Println("Deleting " + tag)
+		if _, err := o.Delete(&models.Tag{Name: tag}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *MainController) addEventTags(eventId int64, tagIds []int64) bool {
 	var ok bool
 	o := orm.NewOrm()
