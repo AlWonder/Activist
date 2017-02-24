@@ -265,8 +265,6 @@ func (c *MainController) EditEvent() {
 }
 
 func (c *MainController) DeleteEvent() {
-	var response models.AddEventResponse
-	response.Ok = false
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -302,9 +300,7 @@ func (c *MainController) DeleteEvent() {
 		return
 	}
 
-	response.Ok = true
-	c.Data["json"] = response
-	c.ServeJSON()
+	c.sendSuccess()
 }
 
 func (c *MainController) JoinEvent() {
@@ -334,38 +330,73 @@ func (c *MainController) JoinEvent() {
 		volonteur = request.AsVolonteur
 	}
 
-	if ok := c.joinEvent(userId, eventId, volonteur); !ok {
+	var event *models.Event
+	var formId int64
+	var hasForm bool
+	var ok bool
+	// Checking if participant already has a volonteur form
+	if volonteur == true {
+		if event = c.getEventById(eventId); event == nil {
+			c.sendErrorWithStatus("Couldn't find an event", 500, 500)
+			return
+		}
+
+		if event.Volonteurs == false {
+			c.sendErrorWithStatus("The event doesn't provide volonteurs", 403, 403)
+			return
+		}
+
+		if formId, ok = c.getFormIdByOrgId(event.UserId); !ok {
+			c.sendErrorWithStatus("The organizer doesn't have a volonteur form", 500, 500)
+			return
+		}
+		hasForm = c.activistHasForm(userId, formId)
+	}
+
+	if ok = c.joinEvent(userId, eventId, volonteur); !ok {
 		c.sendError("Couldn't join event", 14)
 		return
 	}
 
-	// Checking if participant already has a volonteur form
+	// Sending successful response
 	if volonteur == true {
-		var orgId, formId int64
-		var ok bool
-		if orgId, ok = c.getOrgIdByEventId(eventId); !ok {
-			c.sendErrorWithStatus("Internal Server error", 500, 500)
-			return
-		}
+		c.Data["json"] = models.JoinEventVolonteurResponse{Ok: true, HasForm: hasForm, OrganizerId: event.UserId}
+		c.ServeJSON()
+	} else {
+		c.sendSuccess()
+	}
+}
 
-		/* Need event's volonteur field check here
-		*
-		*
-		*/
+func (c *MainController) DenyEvent() {
+	var eventId, userId int64
 
-		if formId, ok = c.getFormIdByOrgId(orgId); !ok {
-			c.sendErrorWithStatus("Internal Server error", 500, 500)
-			return
-		}
-		if hasForm := c.activistHasForm(userId, formId); hasForm {
-			c.Data["json"] = models.JoinEventVolonteurResponse{Ok: true, HasForm: true}
-			c.ServeJSON()
-			return
-		} else {
-			c.Data["json"] = models.JoinEventVolonteurResponse{Ok: false, HasForm: false, OrganizerId: orgId}
-			c.ServeJSON()
-			return
-		}
+	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad request", 400, 400)
+		return
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		userId = user.Id
+	}
+
+	o := orm.NewOrm()
+
+	log.Println(userId, eventId)
+
+	if num, err := o.Raw(`DELETE
+		FROM users_events
+		WHERE user_id = ? AND event_id = ?`, userId, eventId).Exec(); err != nil {
+		log.Println(err)
+		c.sendError("Couldn't deny an event", 14)
+		return
+	} else {
+		log.Println(num)
 	}
 
 	c.sendSuccess()
@@ -497,15 +528,6 @@ func (c *MainController) appendAddEventError(response *models.AddEventResponse, 
 		UserMessage: message,
 		Code:        code,
 	})
-}
-
-func (c *MainController) checkEventStringField(property *string, field interface{}, response *models.AddEventResponse, fieldName string) {
-	if checkedField, ok := field.(string); ok {
-		*property = checkedField
-		log.Println(checkedField)
-	} else {
-		c.appendAddEventError(response, "Datatype error in "+fieldName, 400)
-	}
 }
 
 /*----- I will destroy everything under this string. But later. -----*/
