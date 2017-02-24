@@ -8,7 +8,7 @@ import (
 )
 
 func (c *MainController) GetUserInfo() {
-	var response GetUserInfoResponse
+	var response models.GetUserInfoResponse
 	if payload, err := c.validateToken(); err != nil {
 		log.Println(err)
 		c.appendGetUserInfoError(&response, "Invalid token. Access denied", 401)
@@ -19,7 +19,7 @@ func (c *MainController) GetUserInfo() {
 	} else {
 		user := c.getUserById(int64(payload["sub"].(float64)))
 		log.Println(user)
-		response.User = UserInfo {
+		response.User = models.UserInfo {
                   Email:       &user.Email,
                   Group:       &user.Group,
                   FirstName:   &user.FirstName,
@@ -60,6 +60,18 @@ func (c *MainController) getUserById(id int64) *models.User {
 	    return nil
 	}
 	return &user
+}
+
+func (c *MainController) getOrgIdByEventId(eventId int64) (int64, bool) {
+	o := orm.NewOrm()
+	var orgId int64
+	if err := o.Raw(`SELECT user_id
+		FROM events
+		WHERE id = ?`, eventId).QueryRow(&orgId); err != nil {
+		log.Println("getOrgIdByEventId", err)
+		return 0, false
+	}
+	return orgId, true
 }
 
 /*----- I know it's a mess below. I'll fix it. ----- */

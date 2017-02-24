@@ -11,38 +11,14 @@ import (
 	"strconv"
 )
 
-type GetEventResponse struct {
-	Event      *models.Event `json:"event"`
-	Tags       *[]string     `json:"tags"`
-	IsTimeSet  bool          `json:"isTimeSet"`
-	IsActivist bool          `json:"isActivist"`
-	IsJoined   bool          `json:"isJoined"`
-}
-
-type EditEventRequest struct {
-	Event       models.Event `json:"event"`
-	AddedTags   []string     `json:"addedTags"`
-	RemovedTags []string     `json:"removedTags"`
-}
-
-type ErrorResponse struct {
-	Errors []Error `json:"errors"`
-}
-
-type AddEventResponse struct {
-	Ok      bool    `json:"ok"`
-	Errors  []Error `json:"errors"`
-	EventId int64   `json:"eventId"`
-}
-
-type AddEventRequest struct {
-	Event models.Event `json:"event"`
-	Tags  []string     `json:"tags"`
-}
-
 func (c *MainController) QueryEvents() {
-	events := c.getAllEvents(1)
-	c.Data["json"] = &events
+	var response models.QueryEventsResponse
+	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad page parameter", 404, 404)
+	}
+	response.Events, response.Count = c.getAllEvents(page)
+	c.Data["json"] = &response
 	c.ServeJSON()
 }
 
@@ -54,21 +30,14 @@ func (c *MainController) QueryEventsByTag() {
 }
 
 func (c *MainController) GetEvent() {
-	var response GetEventResponse
+	var response models.GetEventResponse
 	response.IsActivist = false
 	response.IsJoined = false
 	response.IsTimeSet = true
 
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
-		c.Ctx.Output.SetStatus(400)
-		var errorResponse ErrorResponse
-		errorResponse.Errors = append(errorResponse.Errors, Error{
-			UserMessage: "Bad request",
-			Code:        400,
-		})
-		c.Data["json"] = errorResponse
-		c.ServeJSON()
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
 
@@ -86,14 +55,7 @@ func (c *MainController) GetEvent() {
 
 	event := c.getEventById(id)
 	if event == nil {
-		c.Ctx.Output.SetStatus(404)
-		var errorResponse ErrorResponse
-		errorResponse.Errors = append(errorResponse.Errors, Error{
-			UserMessage: "Event not found",
-			Code:        404,
-		})
-		c.Data["json"] = errorResponse
-		c.ServeJSON()
+		c.sendErrorWithStatus("Event not found", 404, 404)
 		return
 	}
 	if event.EventTime.IsZero() {
@@ -102,7 +64,7 @@ func (c *MainController) GetEvent() {
 	tags := c.getTagsByEventId(event.Id)
 	response.Event = event
 	response.Tags = tags
-	c.Data["json"] = response
+	c.Data["json"] = &response
 	c.ServeJSON()
 }
 
@@ -117,42 +79,56 @@ func (c *MainController) QueryUserEvents() {
 	c.ServeJSON()
 }
 
+func (c *MainController) QueryJoinedEvents() {
+	var userId int64
+	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
+		log.Fatal(err)
+	} else {
+		userId = id
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 && user.Id != userId {
+			c.sendErrorWithStatus("You're not allowed to do this", 403, 403)
+			return
+		}
+	}
+
+	events := c.getJoinedEvents(userId)
+	c.Data["json"] = &events
+	c.ServeJSON()
+}
+
 func (c *MainController) AddEvent() {
-	var response AddEventResponse
+	var response models.AddEventResponse
 	response.Ok = false
 	var userId, eventId int64
 
 	if payload, err := c.validateToken(); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
-		c.Ctx.Output.SetStatus(401)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
 		user := c.getUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
-			c.appendAddEventError(&response, "User is not allowed to create events", 403)
-			c.Ctx.Output.SetStatus(403)
-			c.Data["json"] = response
-			c.ServeJSON()
+			c.sendErrorWithStatus("You're not allowed to create events", 403, 403)
 			return
 		}
 		userId = user.Id
 	}
 
 	// Parse the request
-	var request AddEventRequest
+	var request models.AddEventRequest
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
-		c.appendAddEventError(&response, "Request error", 400)
-		c.Ctx.Output.SetStatus(400)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
 	request.Event.UserId = userId
-
-	log.Println(request)
 
 	// Validation
 	valid := validation.Validation{}
@@ -179,9 +155,7 @@ func (c *MainController) AddEvent() {
 
 	// Inserting an event into the database
 	if id, err := o.Insert(&request.Event); err != nil {
-		c.appendAddEventError(&response, "Не удалось добавить новость.", 400)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Couldn't create an event", 14)
 		return
 	} else {
 		eventId = id
@@ -193,16 +167,10 @@ func (c *MainController) AddEvent() {
 	tagIds := c.addTags(request.Tags)
 
 	if ok := c.addEventTags(eventId, tagIds); !ok {
-		c.appendAddEventError(&response, "Ошибка при привязке тегов", 400)
-	}
-
-	// Checking for having errors
-	if response.Errors != nil {
-		log.Println("Errors while singing up")
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Couldn't add tags to the event", 14)
 		return
 	}
+
 	response.Ok = true
 	response.EventId = eventId
 	c.Data["json"] = response
@@ -210,30 +178,24 @@ func (c *MainController) AddEvent() {
 }
 
 func (c *MainController) EditEvent() {
-	var response AddEventResponse
+	var response models.AddEventResponse
 	response.Ok = false
 	var userId int64
 
 	if payload, err := c.validateToken(); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
-		c.Ctx.Output.SetStatus(401)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
 		user := c.getUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
-			c.appendAddEventError(&response, "User is not allowed to edit events", 403)
-			c.Ctx.Output.SetStatus(403)
-			c.Data["json"] = response
-			c.ServeJSON()
+			c.sendErrorWithStatus("You're not allowed to edit events", 403, 403)
 			return
 		}
 		userId = user.Id
 	}
 
-	var request EditEventRequest
+	var request models.EditEventRequest
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &request)
 	if err != nil {
 		log.Println(err)
@@ -246,10 +208,7 @@ func (c *MainController) EditEvent() {
 
 	if request.Event.UserId != userId {
 		log.Println("User is not allowed to edit the event")
-		c.appendAddEventError(&response, "You are not allowed to edit this event", 403)
-		c.Ctx.Output.SetStatus(403)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("You're not allowed to edit this event", 403, 403)
 		return
 	}
 
@@ -258,8 +217,6 @@ func (c *MainController) EditEvent() {
 	valid.Required(request.Event.Title, "title")
 	valid.Required(request.Event.Description, "description")
 	valid.Required(request.Event.EventDate, "event_date")
-
-	log.Println("Eh?")
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
@@ -279,9 +236,7 @@ func (c *MainController) EditEvent() {
 	// Inserting an event into the database
 	if _, err := o.Update(&request.Event); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Не удалось изменить новость.", 400)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Couldn't edit an event", 14)
 		return
 	}
 
@@ -298,7 +253,7 @@ func (c *MainController) EditEvent() {
 
 	// Checking for having errors
 	if response.Errors != nil {
-		log.Println("Errors while singing up")
+		log.Println("Errors while editing tags")
 		c.Data["json"] = response
 		c.ServeJSON()
 		return
@@ -310,37 +265,24 @@ func (c *MainController) EditEvent() {
 }
 
 func (c *MainController) DeleteEvent() {
-	var response AddEventResponse
+	var response models.AddEventResponse
 	response.Ok = false
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
-		c.Ctx.Output.SetStatus(400)
-		var errorResponse ErrorResponse
-		errorResponse.Errors = append(errorResponse.Errors, Error{
-			UserMessage: "Bad request",
-			Code:        400,
-		})
-		c.Data["json"] = errorResponse
-		c.ServeJSON()
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
 
 	if payload, err := c.validateToken(); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Invalid token. Access denied", 401)
-		c.Ctx.Output.SetStatus(401)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
 		user := c.getUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
-			c.appendAddEventError(&response, "User is not allowed to delete events", 403)
-			c.Ctx.Output.SetStatus(403)
-			c.Data["json"] = response
-			c.ServeJSON()
+			c.sendErrorWithStatus("You're is not allowed to delete events", 403, 403)
 			return
 		}
 		userId = user.Id
@@ -348,10 +290,7 @@ func (c *MainController) DeleteEvent() {
 
 	if !c.eventBelongsToUser(eventId, userId) {
 		log.Println("User is not allowed to delete the event")
-		c.appendAddEventError(&response, "You are not allowed to delete this event", 403)
-		c.Ctx.Output.SetStatus(403)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("You're is not allowed to delete this event", 403, 403)
 		return
 	}
 
@@ -359,10 +298,7 @@ func (c *MainController) DeleteEvent() {
 
 	if _, err := o.Delete(&models.Event{Id: eventId}); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Couldn't delete the event", 403)
-		c.Ctx.Output.SetStatus(403)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Couldn't delete an event", 14)
 		return
 	}
 
@@ -371,21 +307,92 @@ func (c *MainController) DeleteEvent() {
 	c.ServeJSON()
 }
 
-func (c *MainController) getAllEvents(limit int) *[]models.Event {
+func (c *MainController) JoinEvent() {
+	var userId, eventId int64
+	volonteur := false
+	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
+		log.Fatal(err)
+	} else {
+		eventId = id
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group != 1 {
+			c.sendErrorWithStatus("You're not allowed to join events", 403, 403)
+			return
+		}
+		userId = user.Id
+	}
+
+	var request models.JoinEventRequest
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err == nil {
+		volonteur = request.AsVolonteur
+	}
+
+	if ok := c.joinEvent(userId, eventId, volonteur); !ok {
+		c.sendError("Couldn't join event", 14)
+		return
+	}
+
+	// Checking if participant already has a volonteur form
+	if volonteur == true {
+		var orgId, formId int64
+		var ok bool
+		if orgId, ok = c.getOrgIdByEventId(eventId); !ok {
+			c.sendErrorWithStatus("Internal Server error", 500, 500)
+			return
+		}
+
+		/* Need event's volonteur field check here
+		*
+		*
+		*/
+
+		if formId, ok = c.getFormIdByOrgId(orgId); !ok {
+			c.sendErrorWithStatus("Internal Server error", 500, 500)
+			return
+		}
+		if hasForm := c.activistHasForm(userId, formId); hasForm {
+			c.Data["json"] = models.JoinEventVolonteurResponse{Ok: true, HasForm: true}
+			c.ServeJSON()
+			return
+		} else {
+			c.Data["json"] = models.JoinEventVolonteurResponse{Ok: false, HasForm: false, OrganizerId: orgId}
+			c.ServeJSON()
+			return
+		}
+	}
+
+	c.sendSuccess()
+}
+
+func (c *MainController) getAllEvents(page int64) (*[]models.Event, int64) {
 	var events []models.Event
 
 	o := orm.NewOrm()
 
-	_, err := o.Raw(`SELECT events.*
+	if _, err := o.Raw(`SELECT events.*
 					 FROM events
 					 INNER JOIN users ON events.user_id=users.id
-					 WHERE users.group = 2 LIMIT ?, 10`,
-		limit).QueryRows(&events)
+					 WHERE users.group = 2
+					 ORDER BY create_date DESC
+					 LIMIT ?, 10`,
+		(page-1)*10).QueryRows(&events); err != nil {
+		log.Println(err)
+		return nil, 0
+	}
+
+	count, err := o.QueryTable("events").Count()
 	if err != nil {
 		log.Println(err)
-		return nil
+		return nil, 0
 	}
-	return &events
+	return &events, count
 }
 
 func (c *MainController) getEventsByTag(tag string) *[]models.Event {
@@ -428,6 +435,33 @@ func (c *MainController) getEventById(id int64) *models.Event {
 	return &event
 }
 
+func (c *MainController) getJoinedEvents(user int64) *[]models.Event {
+	var events []models.Event
+	o := orm.NewOrm()
+
+	_, err := o.Raw(`SELECT e.*
+					 FROM events e
+					 INNER JOIN users_events ue
+					 ON ue.event_id = e.id
+					 WHERE ue.user_id = ?`, user).QueryRows(&events)
+	if err != nil {
+		log.Println("getJoinedEvents: ", err)
+		return nil
+	}
+	return &events
+}
+
+func (c *MainController) joinEvent(user, event int64, volonteur bool) bool {
+	userEvent := models.UserEvent{UserId: user, EventId: event, AsVolonteur: volonteur}
+
+	o := orm.NewOrm()
+	if _, _, err := o.ReadOrCreate(&userEvent, "UserId", "EventId", "AsVolonteur"); err != nil {
+		log.Println("joinEvent: ", err)
+		return false
+	}
+	return true
+}
+
 func (c *MainController) isJoined(user, event int64) bool {
 	o := orm.NewOrm()
 	userEvent := models.UserEvent{UserId: user, EventId: event}
@@ -443,30 +477,29 @@ func (c *MainController) isJoined(user, event int64) bool {
 	return true
 }
 
-
 func (c *MainController) eventBelongsToUser(eventId, userId int64) bool {
 	o := orm.NewOrm()
 	event := models.Event{Id: eventId, UserId: userId}
 	err := o.Read(&event, "id", "user_id")
 
 	if err == orm.ErrNoRows {
-    	log.Println("No result found.")
-    	return false
+		log.Println("No result found.")
+		return false
 	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    return false
+		log.Println("No primary key found.")
+		return false
 	}
 	return true
 }
 
-func (c *MainController) appendAddEventError(response *AddEventResponse, message string, code float64) {
-	response.Errors = append(response.Errors, Error{
+func (c *MainController) appendAddEventError(response *models.AddEventResponse, message string, code float64) {
+	response.Errors = append(response.Errors, models.Error{
 		UserMessage: message,
 		Code:        code,
 	})
 }
 
-func (c *MainController) checkEventStringField(property *string, field interface{}, response *AddEventResponse, fieldName string) {
+func (c *MainController) checkEventStringField(property *string, field interface{}, response *models.AddEventResponse, fieldName string) {
 	if checkedField, ok := field.(string); ok {
 		*property = checkedField
 		log.Println(checkedField)
@@ -592,25 +625,6 @@ func (c *MainController) belongsTo(eventId, user int64) bool {
 	    return false
 	}
 	return true
-}
-
-func (c *MainController) getAcceptedEvents(user int64, limit int) *[]models.Event {
-
-	var events []models.Event
-
-	o := orm.NewOrm()
-
-	_, err := o.Raw(`SELECT events.*
-					 FROM events INNER JOIN (users_events INNER JOIN users ON users.id = users_events.user_id)
-					 ON events.id = users_events.event_id
-					 WHERE users.id = ? AND agree = 1
-					 LIMIT ?, 10`, user, limit).QueryRows(&events)
-	if err != nil {
-		log.Println("getAcceptedEvents: ", err)
-		return nil
-	}
-	log.Println(events)
-	return &events
 }
 
 func (c *MainController) getParticipants(eventId int64) *[]models.User {

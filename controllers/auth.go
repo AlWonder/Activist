@@ -16,70 +16,22 @@ import (
 
 var privateKey = []byte("pisos")
 
-type Error struct {
-	UserMessage string   `json:"userMessage"`
-	Code        float64  `json:"code"`
-}
-
-type LoginResponse struct {
-	IdToken     string   `json:"idToken"`
-	Errors      []Error  `json:"errors"`
-}
-
-type GetUserInfoResponse struct {
-	User        UserInfo `json:"user"`
-	Errors      []Error  `json:"errors"`
-}
-
-type UserInfo struct {
-	Email       *string  `json:"email"`
-	Group       *int64   `json:"group"`
-	FirstName   *string  `json:"firstName"`
-	SecondName  *string  `json:"secondName"`
-	LastName    *string  `json:"lastName"`
-	Gender      *int64   `json:"gender"`
-}
-
 func (c *MainController) Login() {
-	request := make(map[string]interface{})
-	var response LoginResponse
+	var request models.LoginRequest
+	var response models.LoginResponse
 
 	// Checking for a correct JSON request. If not, throw an error to a client
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
-		c.appendLoginError(&response, "Request error", 400)
-		c.Ctx.Output.SetStatus(400)
-		c.Data["json"] = response
-		c.ServeJSON()
-		return
-	}
-
-	// Checking if username and password fields are correct
-	var email, password string
-	if field, ok := request["email"].(string); ok {
-		email = field
-	} else {
-		c.appendLoginError(&response, "Bad username field", 400)
-	}
-	if field, ok := request["password"].(string); ok {
-		password = field
-	} else {
-		c.appendLoginError(&response, "Bad password field", 400)
-	}
-
-	// Checking for having errors
-	if response.Errors != nil {
-		log.Println("Errors while singing up")
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
 
 	valid := validation.Validation{}
-	valid.Required(email, "email")
-	valid.Required(password, "password")
-	valid.Email(email, "email")
-	valid.MaxSize(email, 30, "email")
-	valid.MaxSize(password, 30, "email")
+	valid.Required(request.Email, "email")
+	valid.Required(request.Password, "password")
+	valid.Email(request.Email, "email")
+	valid.MaxSize(request.Email, 30, "email")
+	valid.MaxSize(request.Password, 30, "email")
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
@@ -97,11 +49,9 @@ func (c *MainController) Login() {
 	}
 
 	// Getting a user from db
-	user := c.getUserByEmail(email)
+	user := c.getUserByEmail(request.Email)
 	if user == nil {
-		c.appendLoginError(&response, "Пользователь с таким email не найден", 400)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Bad email or password", 14)
 		return
 	}
 
@@ -118,10 +68,8 @@ func (c *MainController) Login() {
 		log.Println("ERROR:", err)
 	}
 
-	if !pk.MatchPassword(password, &x) {
-		c.appendLoginError(&response, "Неверный email/пароль", 400)
-		c.Data["json"] = response
-		c.ServeJSON()
+	if !pk.MatchPassword(request.Password, &x) {
+		c.sendError("Bad email or password", 14)
 		return
 	}
 
@@ -134,35 +82,32 @@ func (c *MainController) Login() {
 }
 
 func (c *MainController) SignUp() {
-	user := make(map[string]interface{})
-	json.Unmarshal(c.Ctx.Input.RequestBody, &user)
-	var response LoginResponse
+	var request models.SignUpRequest
+	var response models.LoginResponse
 
-	if userInterface, ok := user["user"].(map[string]interface{}); !ok {
-		c.appendLoginError(&response, "Request error", 400)
-		c.Ctx.Output.SetStatus(400)
-		c.Data["json"] = response
-		c.ServeJSON()
+	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
-	} else {
-		user = userInterface
 	}
+
+	log.Println(request)
 
 	// Validate input fields
 	valid := validation.Validation{}
-	valid.Email(user["email"], "email")
-	valid.Required(user["email"], "email")
-	valid.Required(user["password"], "password")
-	valid.Required(user["group"], "group")
-	valid.Required(user["firstName"], "first_name")
-	valid.Required(user["secondName"], "second_name")
-	valid.Required(user["lastName"], "last_name")
-	valid.Required(user["gender"], "gender")
-	valid.MaxSize(user["email"], 30, "email")
-	valid.MaxSize(user["password"], 30, "email")
-	valid.MaxSize(user["firstName"], 25, "first_name")
-	valid.MaxSize(user["secondName"], 25, "second_name")
-	valid.MaxSize(user["lastName"], 25, "last_name")
+	valid.Email(request.User.Email, "email")
+	valid.Required(request.User.Email, "email")
+	valid.Required(request.User.Password, "password")
+	valid.Required(request.User.Group, "group")
+	valid.Required(request.User.FirstName, "first_name")
+	valid.Required(request.User.SecondName, "second_name")
+	valid.Required(request.User.LastName, "last_name")
+	valid.Required(request.User.Gender, "gender")
+	valid.MaxSize(request.User.Email, 30, "email")
+	valid.MaxSize(request.User.Password, 30, "email")
+	valid.MaxSize(request.User.FirstName, 25, "first_name")
+	valid.MaxSize(request.User.SecondName, 25, "second_name")
+	valid.MaxSize(request.User.LastName, 25, "last_name")
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
@@ -170,17 +115,6 @@ func (c *MainController) SignUp() {
 			log.Println("Error on " + err.Key)
 		}
 	}
-
-	var newUser models.User
-
-	// Checking if fields have correct type
-	c.checkStringField(&newUser.Email, user["email"], &response, "Email")
-	c.checkStringField(&newUser.Password, user["password"], &response, "Password")
-	c.checkStringField(&newUser.FirstName, user["firstName"], &response, "First name")
-	c.checkStringField(&newUser.SecondName, user["secondName"], &response, "Second name")
-	c.checkStringField(&newUser.LastName, user["lastName"], &response, "Last name")
-	c.checkIntField(&newUser.Gender, user["gender"], &response, "Gender")
-	c.checkIntField(&newUser.Group, user["group"], &response, "Group")
 
 	// Checking for having errors
 	if response.Errors != nil {
@@ -191,16 +125,16 @@ func (c *MainController) SignUp() {
 	}
 
 	// If it's alright, hashing the password and creating a new user
-	h := pk.HashPassword(user["password"].(string))
+	h := pk.HashPassword(request.User.Password)
 	o := orm.NewOrm()
 
-	newUser.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
-	if _, err := o.Insert(&newUser); err != nil {
-		c.appendLoginError(&response, "Не удалось зарегистрироваться. Возможно, пользователь с таким именем уже существует", 400)
+	request.User.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
+	if _, err := o.Insert(&request.User); err != nil {
+		c.sendError("Couldn't sign up. The user probably already exists", 14)
 		log.Println(err)
 	} else {
 		// Generating a token and sending it to a client
-		token := c.generateToken(newUser.Id)
+		token := c.generateToken(request.User.Id)
 		response.IdToken = token
 	}
 
@@ -261,7 +195,7 @@ func (c *MainController) validateToken() (jwt.MapClaims, error) {
 }
 
 // Checks that json field is string and appends an error into response if it isn't
-func (c *MainController) checkStringField(userProperty *string, field interface{}, response *LoginResponse, fieldName string) {
+func (c *MainController) checkStringField(userProperty *string, field interface{}, response *models.LoginResponse, fieldName string) {
 	if checkedField, ok := field.(string); ok {
 		*userProperty = checkedField
 		log.Println(checkedField)
@@ -271,7 +205,7 @@ func (c *MainController) checkStringField(userProperty *string, field interface{
 }
 
 // The same as previous but for int64
-func (c *MainController) checkIntField(userProperty *int64, field interface{}, response *LoginResponse, fieldName string) {
+func (c *MainController) checkIntField(userProperty *int64, field interface{}, response *models.LoginResponse, fieldName string) {
 	if stringField, ok := field.(string); ok {
 		if checkedField, err := strconv.ParseInt(stringField, 10, 64); err != nil {
 			c.appendLoginError(response, "Datatype error in "+fieldName, 400)
@@ -284,8 +218,8 @@ func (c *MainController) checkIntField(userProperty *int64, field interface{}, r
 }
 
 // Appends an error into the response body
-func (c *MainController) appendLoginError(response *LoginResponse, message string, code float64) {
-	response.Errors = append(response.Errors, Error{
+func (c *MainController) appendLoginError(response *models.LoginResponse, message string, code float64) {
+	response.Errors = append(response.Errors, models.Error{
 		UserMessage: message,
 		Code:        code,
 	})
@@ -293,8 +227,8 @@ func (c *MainController) appendLoginError(response *LoginResponse, message strin
 
 // The same but for get user response
 // Where are my generics Google?!
-func (c *MainController) appendGetUserInfoError(response *GetUserInfoResponse, message string, code float64) {
-	response.Errors = append(response.Errors, Error{
+func (c *MainController) appendGetUserInfoError(response *models.GetUserInfoResponse, message string, code float64) {
+	response.Errors = append(response.Errors, models.Error{
 		UserMessage: message,
 		Code:        code,
 	})
