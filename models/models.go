@@ -38,7 +38,7 @@ type TagStatus struct {
 	Id     int64 `orm:"column(id)" json:"id"`
 	UserId int64 `orm:"column(user_id)" json:"userId"`
 	TagId  int64 `orm:"column(tag_id)" json:"tagId"`
-	Status bool  `orm:"column(fav_hide);default(0)" json:"favHide"` //0 - favorite, 1 - hidden
+	Status bool  `orm:"column(status);default(0)" json:"status"` //0 - hidden, 1 - favorite
 }
 
 type UserEvent struct {

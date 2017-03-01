@@ -199,8 +199,7 @@ func (c *MainController) EditEvent() {
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &request)
 	if err != nil {
 		log.Println(err)
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
 
@@ -280,7 +279,7 @@ func (c *MainController) DeleteEvent() {
 	} else {
 		user := c.getUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
-			c.sendErrorWithStatus("You're is not allowed to delete events", 403, 403)
+			c.sendErrorWithStatus("You're not allowed to delete events", 403, 403)
 			return
 		}
 		userId = user.Id
@@ -288,7 +287,7 @@ func (c *MainController) DeleteEvent() {
 
 	if !c.eventBelongsToUser(eventId, userId) {
 		log.Println("User is not allowed to delete the event")
-		c.sendErrorWithStatus("You're is not allowed to delete this event", 403, 403)
+		c.sendErrorWithStatus("You're not allowed to delete this event", 403, 403)
 		return
 	}
 
@@ -533,121 +532,6 @@ func (c *MainController) appendAddEventError(response *models.AddEventResponse, 
 /*----- I will destroy everything under this string. But later. -----*/
 
 /*
-
-func (c *MainController) JoinEvent() {
-	c.activeContent("events/join", "", []string{}, []string{})
-	sess := c.GetSession("activist")
-	if sess != nil {
-		c.Redirect("/home", 302)
-	}
-
-	m := sess.(map[string]interface{})
-	var prt int64
-	prt = 1
-	if m["group"] != prt {
-		c.Redirect("/home", 302)
-	}
-
-	as, err := c.GetInt64("as")
-	if err != nil {
-		log.Println("JoinEvent, as: ", err)
-		c.Abort("401")
-	}
-
-	if as == 1 {
-		log.Println("Join as participant")
-		eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-	    if err != nil {
-	        log.Println("JoinEvent, eventId: ", err)
-	        c.Abort("401")
-	    }
-
-	    userId := m["id"].(int64)
-	    log.Println(eventId, userId)
-
-	    o := orm.NewOrm()
-
-		userEvent := models.UserEvent{UserId: userId, EventId: eventId, Agree: true, AsVolonteur: false}
-		_, err = o.Insert(&userEvent)
-		if err != nil {
-			log.Println("JoinEvent, data insertion: ", err)
-			c.Abort("401")
-		}
-
-	} else if as == 2 {
-		log.Println("Join as volonteur")
-	}
-}
-
-func (c *MainController) DenyEvent() {
-	sess := c.GetSession("activist")
-	if sess == nil {
-		c.Redirect("/home", 302)
-	}
-
-	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-    if err != nil {
-        log.Println("DenyEvent, eventId: ", err)
-        c.Abort("401")
-    }
-
-	m := sess.(map[string]interface{})
-	if c.isJoined(m["id"].(int64), eventId) {
-		o := orm.NewOrm()
-	    if num, err := o.QueryTable("users_events").Filter("user_id",
-	    				 m["id"].(int64)).Filter("event_id",
-	    				 eventId).Delete(); err == nil {
-	        log.Println("Deleted row from users_events")
-	        log.Println(num)
-		} else {
-			log.Println("DenyEvent, deleting: ", err)
-		}
-	}
-	c.Redirect("/home", 302)
-}
-
-func (c *MainController) DeleteEvent() {
-	sess := c.GetSession("activist")
-	if sess == nil {
-		c.Redirect("/home", 302)
-	}
-
-	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-    if err != nil {
-        log.Println("DeleteEvent: ", err)
-        c.Abort("401")
-    }
-
-	m := sess.(map[string]interface{})
-	if !c.belongsTo(eventId, m["id"].(int64)) {
-		c.Abort("403")
-	}
-
-	o := orm.NewOrm()
-
-	if num, err := o.Delete(&models.Event{Id: eventId}); err == nil {
-		log.Println(num)
-	} else {
-		log.Println("DeleteEvent, deleting: ", err)
-	}
-
-	c.Redirect("/home", 302)
-}
-
-func (c *MainController) belongsTo(eventId, user int64) bool {
-	o := orm.NewOrm()
-	event := models.Event{Id: eventId, UserId: user}
-	err := o.Read(&event, "id", "user_id")
-
-	if err == orm.ErrNoRows {
-    	log.Println("No result found.")
-    	return false
-	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    return false
-	}
-	return true
-}
 
 func (c *MainController) getParticipants(eventId int64) *[]models.User {
 	var users []models.User

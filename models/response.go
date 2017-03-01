@@ -29,8 +29,8 @@ type GetEventResponse struct {
 }
 
 type GetUserInfoResponse struct {
-	User   UserInfo `json:"user"`
-	Errors []Error  `json:"errors"`
+	User   *User   `json:"user"`
+	Errors []Error `json:"errors"`
 }
 
 type UserInfo struct {
@@ -49,7 +49,24 @@ type AddEventResponse struct {
 }
 
 type JoinEventVolonteurResponse struct {
-	Ok bool `json:"ok"`
-	HasForm bool `json:"hasForm"`
+	Ok          bool  `json:"ok"`
+	HasForm     bool  `json:"hasForm"`
 	OrganizerId int64 `json:"organizerId"`
+}
+
+type GetTagStatusResponse struct {
+	Ok        bool `json:"ok"`
+	HasStatus bool `json:"hasStatus"`
+	Status    bool `json:"status"`
+}
+
+type GetJoinedUsersResponse struct {
+	Ok    bool          `json:"ok"`
+	Users *[]JoinedUser `json:"users"`
+}
+
+type JoinedUser struct {
+	User        User  `json:"user"`
+	AsVolonteur bool  `json:"asVolonteur"`
+	FormId      int64 `json:"formId"`
 }

@@ -3,8 +3,9 @@ package controllers
 import (
 	"log"
 	//"github.com/astaxie/beego"
-	"github.com/astaxie/beego/orm"
 	"activist_api/models"
+	"github.com/astaxie/beego/orm"
+	"strconv"
 )
 
 func (c *MainController) GetUserInfo() {
@@ -17,19 +18,52 @@ func (c *MainController) GetUserInfo() {
 		c.ServeJSON()
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
-		log.Println(user)
-		response.User = models.UserInfo {
-                  Email:       &user.Email,
-                  Group:       &user.Group,
-                  FirstName:   &user.FirstName,
-                  SecondName:  &user.SecondName,
-                  LastName:    &user.LastName,
-                  Gender:      &user.Gender,
-		}
-		c.Data["json"] = response
+		response.User = c.getUserById(int64(payload["sub"].(float64)))
+		response.User.Password = ""
+		c.Data["json"] = &response
 		c.ServeJSON()
 	}
+}
+
+func (c *MainController) GetJoinedUsers() {
+	var eventId, userId int64
+
+	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad request", 400, 400)
+		return
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 {
+			c.sendErrorWithStatus("You're not allowed to delete events", 403, 403)
+			return
+		}
+		userId = user.Id
+	}
+
+	if !c.eventBelongsToUser(eventId, userId) {
+		log.Println("User is not allowed to see joined users for not your events")
+		c.sendErrorWithStatus("You're not allowed to see joined users for not your events", 403, 403)
+		return
+	}
+
+	var response models.GetJoinedUsersResponse
+	response.Ok = false
+
+	if response.Users = c.getJoinedUsers(eventId, userId); response.Users == nil {
+		c.sendError("Couldn't find joined users", 14)
+		return
+	}
+
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
 }
 
 func (c *MainController) getUserByEmail(email string) *models.User {
@@ -38,11 +72,11 @@ func (c *MainController) getUserByEmail(email string) *models.User {
 	err := o.Read(&user, "email")
 
 	if err == orm.ErrNoRows {
-    	log.Println("No result found.")
-    	return nil
+		log.Println("No result found.")
+		return nil
 	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    return nil
+		log.Println("No primary key found.")
+		return nil
 	}
 	return &user
 }
@@ -53,11 +87,11 @@ func (c *MainController) getUserById(id int64) *models.User {
 	err := o.Read(&user, "id")
 
 	if err == orm.ErrNoRows {
-    	log.Println("No result found.")
-    	return nil
+		log.Println("No result found.")
+		return nil
 	} else if err == orm.ErrMissPK {
-	    log.Println("No primary key found.")
-	    return nil
+		log.Println("No primary key found.")
+		return nil
 	}
 	return &user
 }
@@ -72,6 +106,51 @@ func (c *MainController) getOrgIdByEventId(eventId int64) (int64, bool) {
 		return 0, false
 	}
 	return orgId, true
+}
+
+func (c *MainController) getJoinedUsers(eventId, orgId int64) *[]models.JoinedUser {
+	var usersEvents []models.UserEvent
+
+	o := orm.NewOrm()
+
+	if _, err := o.Raw(`SELECT *
+					 FROM users_events
+					 WHERE event_id = ?`, eventId).QueryRows(&usersEvents); err != nil {
+		log.Println("getJoinedUsers: ", err)
+		return nil
+	}
+
+	var joinedUsers []models.JoinedUser
+
+	for _, v := range usersEvents {
+		user := models.User{Id: v.UserId}
+
+		if err := o.Read(&user); err == orm.ErrNoRows {
+			log.Println("No result found.")
+		} else if err == orm.ErrMissPK {
+			log.Println("No primary key found.")
+		} else {
+			if v.AsVolonteur {
+				var formId int64
+				log.Println(v.Id, orgId)
+				if err := o.Raw(`SELECT fu.id
+					FROM forms_users fu
+					INNER JOIN (users u INNER JOIN form_templates ft ON ft.organizer_id = u.id)
+					ON fu.form_id = ft.id
+					WHERE fu.participant_id = ? AND u.id = ?`, v.UserId, orgId).QueryRow(&formId); err == nil {
+					log.Println("Has a form")
+					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur, FormId: formId})
+				} else {
+					log.Println("Doesn't have a form")
+					log.Println(err)
+					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur})
+				}
+			} else {
+				joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur})
+			}
+		}
+	}
+	return &joinedUsers
 }
 
 /*----- I know it's a mess below. I'll fix it. ----- */
