@@ -24,10 +24,11 @@ func init() {
 }
 
 func main() {
+	beego.SetStaticPath("/storage", "static/usrfiles")
 	beego.InsertFilter("*", beego.BeforeRouter,cors.Allow(&cors.Options{
         AllowOrigins: []string{"*"},
         AllowMethods: []string{"GET", "DELETE", "POST", "PUT", "PATCH", "OPTIONS"},
-        AllowHeaders: []string{"Origin", "Access-Control-Allow-Origin", "Content-Type", "Authorization"},
+        AllowHeaders: []string{"Origin", "Access-Control-Allow-Origin", "Content-Type", "enctype", "Authorization", "Content-Range", "Content-Disposition", "Content-Description", "Accept"},
         ExposeHeaders: []string{"Content-Length", "Access-Control-Allow-Origin"},
         AllowCredentials: true,
     }))

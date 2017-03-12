@@ -1,9 +1,9 @@
 package models
 
 import (
-  "time"
-  "errors"
-  "encoding/json"
+	"encoding/json"
+	"errors"
+	"time"
 )
 
 type Event struct {
@@ -15,6 +15,7 @@ type Event struct {
 	EventDate   time.Time `orm:"column(event_date);type(date)" json:"eventDate"`
 	EventTime   time.Time `orm:"column(event_time);type(datetime)" json:"eventTime"`
 	Volonteurs  bool      `orm:"column(volonteurs);default(0)" json:"volonteurs"`
+	Cover       string    `orm:"column(cover);size(128)" json:"cover"`
 }
 
 func (e *Event) MarshalJSON() ([]byte, error) {
@@ -52,12 +53,12 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 			} else {
 				e.UserId = int64(id)
 			}
-    case "volonteurs":
-      if vol, ok := v.(bool); !ok {
-        return errors.New("Bad volonteurs field")
-      } else {
-        e.Volonteurs = vol
-      }
+		case "volonteurs":
+			if vol, ok := v.(bool); !ok {
+				return errors.New("Bad volonteurs field")
+			} else {
+				e.Volonteurs = vol
+			}
 		case "title":
 			if title, ok := v.(string); !ok {
 				return errors.New("Bad title field")

@@ -16,6 +16,7 @@ type User struct {
 	LastName   string    `orm:"column(last_name);size(25)" json:"lastName"`
 	BirthDate  time.Time `orm:"column(birth_date);type(date)" json:"birthDate"`
 	Gender     int64     `orm:"column(gender);default(0)" json:"gender"` //0 - unknown, 1 - male, 2 - female
+  Avatar     string    `orm:"column(avatar);size(30)" json:"avatar"`
 }
 
 func (u *User) TableName() string {

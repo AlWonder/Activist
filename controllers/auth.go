@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var privateKey = []byte("pisos")
+var privateKey = []byte("B7tfu34bfkderf43bfkj4bfkjerf")
 
 func (c *MainController) Login() {
 	var request models.LoginRequest
@@ -129,6 +129,17 @@ func (c *MainController) SignUp() {
 	o := orm.NewOrm()
 
 	request.User.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
+
+	// Uploading an avatar
+	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
+    if file != nil {
+        // get the filename
+        fileName := header.Filename
+        // save to server
+        err := c.SaveToFile("file", "/static/user/" + fileName)
+				log.Println(err)
+    }
+
 	if _, err := o.Insert(&request.User); err != nil {
 		c.sendError("Couldn't sign up. The user probably already exists", 14)
 		log.Println(err)

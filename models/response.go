@@ -22,6 +22,7 @@ type QueryEventsResponse struct {
 
 type GetEventResponse struct {
 	Event      *Event    `json:"event"`
+	Organizer  *User     `json:"organizer"`
 	Tags       *[]string `json:"tags"`
 	IsTimeSet  bool      `json:"isTimeSet"`
 	IsActivist bool      `json:"isActivist"`

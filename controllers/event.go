@@ -3,11 +3,14 @@ package controllers
 import (
 	//"github.com/astaxie/beego"
 	"activist_api/models"
+	"crypto/rand"
 	"encoding/json"
+	"fmt"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
+	"os"
 	"strconv"
 )
 
@@ -53,17 +56,20 @@ func (c *MainController) GetEvent() {
 		}
 	}
 
-	event := c.getEventById(id)
-	if event == nil {
+	response.Event = c.getEventById(id)
+	if response.Event == nil {
 		c.sendErrorWithStatus("Event not found", 404, 404)
 		return
 	}
-	if event.EventTime.IsZero() {
+	if response.Event.EventTime.IsZero() {
 		response.IsTimeSet = false
 	}
-	tags := c.getTagsByEventId(event.Id)
-	response.Event = event
-	response.Tags = tags
+	response.Organizer = c.getUserById(response.Event.UserId)
+	if response.Organizer == nil {
+		c.sendErrorWithStatus("Organizer not found", 404, 404)
+		return
+	}
+	response.Tags = c.getTagsByEventId(response.Event.Id)
 	c.Data["json"] = &response
 	c.ServeJSON()
 }
@@ -128,6 +134,7 @@ func (c *MainController) AddEvent() {
 		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
+
 	request.Event.UserId = userId
 
 	// Validation
@@ -175,6 +182,144 @@ func (c *MainController) AddEvent() {
 	response.EventId = eventId
 	c.Data["json"] = response
 	c.ServeJSON()
+}
+
+func (c *MainController) AddAvatar() {
+	var userId int64
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		userId = user.Id
+	}
+
+	log.Println("Uploading...")
+	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
+	if file != nil {
+		b := make([]byte, 8)
+		rand.Read(b)
+		newName := fmt.Sprintf("%x", b)
+
+		log.Println(header.Header["Content-Type"])
+		if header.Header["Content-Type"][0] != "image/png" && header.Header["Content-Type"][0] != "image/jpeg" {
+			c.sendError("It's not an image", 1)
+			return
+		}
+
+		// save to server
+		path := "static/usrfiles/user/avatar/" + newName[:2]
+		_ = os.Mkdir(path, os.ModePerm)
+		path += "/" + newName + ".jpg"
+		err := c.SaveToFile("file", path)
+		log.Println(err)
+
+		var sFile *os.File
+		if sFile, err = os.Open(path); err != nil {
+			log.Println(err)
+			c.sendError("Couldn't open a file", 1)
+			return
+		}
+		if ok := transformAvatar(sFile, path); !ok {
+			c.sendError("Couldn't transform an avatar", 1)
+		}
+
+		log.Println(path)
+
+		o := orm.NewOrm()
+
+		user := models.User{Id: userId}
+		if o.Read(&user) == nil {
+			user.Avatar = path[28:]
+			if _, err := o.Update(&user); err == nil {
+				c.sendSuccess()
+				return
+			}
+			c.sendError("Couldn't update an avatar", 14)
+			return
+		}
+		c.sendError("Couldn't find a user", 14)
+	} else {
+		c.sendError("Couldn't detect any file in the request", 1)
+	}
+}
+
+func (c *MainController) AddCover() {
+	var eventId, userId int64
+
+	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad request", 400, 400)
+		return
+	}
+
+	if payload, err := c.validateToken(); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := c.getUserById(int64(payload["sub"].(float64)))
+		userId = user.Id
+	}
+
+	// Need checking for right event owner and correct file
+	if !c.eventBelongsToUser(eventId, userId) {
+		c.sendErrorWithStatus("You're not allowed to upload covers to this event", 403, 403)
+		return
+	}
+
+	log.Println("Uploading...")
+	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
+	if file != nil {
+		b := make([]byte, 8)
+		rand.Read(b)
+		newName := fmt.Sprintf("%x", b)
+
+		log.Println(header.Header["Content-Type"])
+		if header.Header["Content-Type"][0] != "image/png" && header.Header["Content-Type"][0] != "image/jpeg" {
+			c.sendError("It's not an image", 1)
+			return
+		}
+
+		// save to server
+		path := "static/usrfiles/event/" + newName[:2]
+		_ = os.Mkdir(path, os.ModePerm)
+		path += "/" + newName[2:4]
+		_ = os.Mkdir(path, os.ModePerm)
+		path += "/" + newName + ".jpg"
+		err := c.SaveToFile("file", path)
+		log.Println(err)
+
+		var sFile *os.File
+		if sFile, err = os.Open(path); err != nil {
+			log.Println(err)
+			c.sendError("Couldn't open a file", 1)
+			return
+		}
+		if ok := transformCover(sFile, path); !ok {
+			c.sendError("Couldn't transform an image", 1)
+		}
+
+		log.Println(path)
+
+		o := orm.NewOrm()
+
+		event := models.Event{Id: eventId}
+		if o.Read(&event) == nil {
+			event.Cover = path[22:]
+			if _, err := o.Update(&event); err == nil {
+				c.sendSuccess()
+				return
+			}
+			c.sendError("Couldn't update a cover", 14)
+			return
+		}
+		c.sendError("Couldn't find an event", 14)
+	} else {
+		c.sendError("Couldn't detect a file in the request", 1)
+	}
 }
 
 func (c *MainController) EditEvent() {
@@ -410,9 +555,9 @@ func (c *MainController) getAllEvents(page int64) (*[]models.Event, int64) {
 					 FROM events
 					 INNER JOIN users ON events.user_id=users.id
 					 WHERE users.group = 2
-					 ORDER BY create_date DESC
-					 LIMIT ?, 10`,
-		(page-1)*10).QueryRows(&events); err != nil {
+					 ORDER BY id DESC
+					 LIMIT ?, 12`,
+		(page-1)*12).QueryRows(&events); err != nil {
 		log.Println(err)
 		return nil, 0
 	}
@@ -520,6 +665,24 @@ func (c *MainController) eventBelongsToUser(eventId, userId int64) bool {
 		return false
 	}
 	return true
+}
+
+func (c *MainController) getCover(eventId int64) string {
+	o := orm.NewOrm()
+	var coverPath string
+
+	err := o.Raw(`SELECT src
+		FROM images
+		WHERE event_id = ?`, eventId).QueryRow(&coverPath)
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return ""
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return ""
+	}
+	return coverPath
 }
 
 func (c *MainController) appendAddEventError(response *models.AddEventResponse, message string, code float64) {
