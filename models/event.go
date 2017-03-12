@@ -14,7 +14,7 @@ type Event struct {
 	CreateDate  time.Time `orm:"column(create_date);auto_now_add;type(date)" json:"createDate"`
 	EventDate   time.Time `orm:"column(event_date);type(date)" json:"eventDate"`
 	EventTime   time.Time `orm:"column(event_time);type(datetime)" json:"eventTime"`
-	Volonteurs  bool      `orm:"column(volonteurs);default(0)" json:"volonteurs"`
+	Volunteers  bool      `orm:"column(volunteers);default(0)" json:"volunteers"`
 	Cover       string    `orm:"column(cover);size(128)" json:"cover"`
 }
 
@@ -53,11 +53,11 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 			} else {
 				e.UserId = int64(id)
 			}
-		case "volonteurs":
+		case "volunteers":
 			if vol, ok := v.(bool); !ok {
-				return errors.New("Bad volonteurs field")
+				return errors.New("Bad volunteers field")
 			} else {
-				e.Volonteurs = vol
+				e.Volunteers = vol
 			}
 		case "title":
 			if title, ok := v.(string); !ok {

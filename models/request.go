@@ -17,7 +17,7 @@ type EditEventRequest struct {
 }
 
 type JoinEventRequest struct {
-	AsVolonteur bool `json:"asVolonteur"`
+	AsVolunteer bool `json:"asVolunteer"`
 }
 
 type SignUpRequest struct {

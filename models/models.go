@@ -45,7 +45,7 @@ type UserEvent struct {
 	Id          int64 `orm:"column(id)" json:"id"`
 	UserId      int64 `orm:"column(user_id)" json:"userId"`
 	EventId     int64 `orm:"column(event_id)" json:"eventId"`
-	AsVolonteur bool  `orm:"column(as_volonteur);default(0)" json:"asVolonteur"`
+	AsVolunteer bool  `orm:"column(as_volunteer);default(0)" json:"asVolunteer"`
 }
 
 type UserGroup struct {

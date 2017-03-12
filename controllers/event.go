@@ -449,7 +449,7 @@ func (c *MainController) DeleteEvent() {
 
 func (c *MainController) JoinEvent() {
 	var userId, eventId int64
-	volonteur := false
+	volunteer := false
 	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
 		log.Fatal(err)
 	} else {
@@ -471,40 +471,40 @@ func (c *MainController) JoinEvent() {
 
 	var request models.JoinEventRequest
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err == nil {
-		volonteur = request.AsVolonteur
+		volunteer = request.AsVolunteer
 	}
 
 	var event *models.Event
 	var formId int64
 	var hasForm bool
 	var ok bool
-	// Checking if participant already has a volonteur form
-	if volonteur == true {
+	// Checking if participant already has a volunteer form
+	if volunteer == true {
 		if event = c.getEventById(eventId); event == nil {
 			c.sendErrorWithStatus("Couldn't find an event", 500, 500)
 			return
 		}
 
-		if event.Volonteurs == false {
-			c.sendErrorWithStatus("The event doesn't provide volonteurs", 403, 403)
+		if event.Volunteers == false {
+			c.sendErrorWithStatus("The event doesn't provide volunteers", 403, 403)
 			return
 		}
 
 		if formId, ok = c.getFormIdByOrgId(event.UserId); !ok {
-			c.sendErrorWithStatus("The organizer doesn't have a volonteur form", 500, 500)
+			c.sendErrorWithStatus("The organizer doesn't have a volunteer form", 500, 500)
 			return
 		}
 		hasForm = c.activistHasForm(userId, formId)
 	}
 
-	if ok = c.joinEvent(userId, eventId, volonteur); !ok {
+	if ok = c.joinEvent(userId, eventId, volunteer); !ok {
 		c.sendError("Couldn't join event", 14)
 		return
 	}
 
 	// Sending successful response
-	if volonteur == true {
-		c.Data["json"] = models.JoinEventVolonteurResponse{Ok: true, HasForm: hasForm, OrganizerId: event.UserId}
+	if volunteer == true {
+		c.Data["json"] = models.JoinEventVolunteerResponse{Ok: true, HasForm: hasForm, OrganizerId: event.UserId}
 		c.ServeJSON()
 	} else {
 		c.sendSuccess()
@@ -626,11 +626,11 @@ func (c *MainController) getJoinedEvents(user int64) *[]models.Event {
 	return &events
 }
 
-func (c *MainController) joinEvent(user, event int64, volonteur bool) bool {
-	userEvent := models.UserEvent{UserId: user, EventId: event, AsVolonteur: volonteur}
+func (c *MainController) joinEvent(user, event int64, volunteer bool) bool {
+	userEvent := models.UserEvent{UserId: user, EventId: event, AsVolunteer: volunteer}
 
 	o := orm.NewOrm()
-	if _, _, err := o.ReadOrCreate(&userEvent, "UserId", "EventId", "AsVolonteur"); err != nil {
+	if _, _, err := o.ReadOrCreate(&userEvent, "UserId", "EventId", "AsVolunteer"); err != nil {
 		log.Println("joinEvent: ", err)
 		return false
 	}

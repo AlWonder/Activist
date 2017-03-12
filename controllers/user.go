@@ -130,7 +130,7 @@ func (c *MainController) getJoinedUsers(eventId, orgId int64) *[]models.JoinedUs
 		} else if err == orm.ErrMissPK {
 			log.Println("No primary key found.")
 		} else {
-			if v.AsVolonteur {
+			if v.AsVolunteer {
 				var formId int64
 				log.Println(v.Id, orgId)
 				if err := o.Raw(`SELECT fu.id
@@ -139,14 +139,14 @@ func (c *MainController) getJoinedUsers(eventId, orgId int64) *[]models.JoinedUs
 					ON fu.form_id = ft.id
 					WHERE fu.participant_id = ? AND u.id = ?`, v.UserId, orgId).QueryRow(&formId); err == nil {
 					log.Println("Has a form")
-					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur, FormId: formId})
+					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolunteer: v.AsVolunteer, FormId: formId})
 				} else {
 					log.Println("Doesn't have a form")
 					log.Println(err)
-					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur})
+					joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolunteer: v.AsVolunteer})
 				}
 			} else {
-				joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolonteur: v.AsVolonteur})
+				joinedUsers = append(joinedUsers, models.JoinedUser{User: user, AsVolunteer: v.AsVolunteer})
 			}
 		}
 	}

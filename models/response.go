@@ -49,7 +49,7 @@ type AddEventResponse struct {
 	EventId int64   `json:"eventId"`
 }
 
-type JoinEventVolonteurResponse struct {
+type JoinEventVolunteerResponse struct {
 	Ok          bool  `json:"ok"`
 	HasForm     bool  `json:"hasForm"`
 	OrganizerId int64 `json:"organizerId"`
@@ -68,6 +68,6 @@ type GetJoinedUsersResponse struct {
 
 type JoinedUser struct {
 	User        User  `json:"user"`
-	AsVolonteur bool  `json:"asVolonteur"`
+	AsVolunteer bool  `json:"asVolunteer"`
 	FormId      int64 `json:"formId"`
 }
