@@ -7,16 +7,16 @@ import (
 )
 
 type User struct {
-	Id         int64     `orm:"column(id)" json:"id"`
-	Email      string    `orm:"column(email);size(30);unique" json:"email"`
+	Id         int64     `orm:"column(id);pk" json:"id"`
+	Email      string    `orm:"column(email);size(30);unique" json:"email,omitempty"`
 	Password   string    `orm:"column(password);size(128)" json:"-"`
-	Group      int64     `orm:"column(group);default(1)" json:"group"`
-	FirstName  string    `orm:"column(first_name);size(25)" json:"firstName"`
-	SecondName string    `orm:"column(second_name);size(25)" json:"secondName"`
-	LastName   string    `orm:"column(last_name);size(25)" json:"lastName"`
-	BirthDate  time.Time `orm:"column(birth_date);type(date)" json:"birthDate"`
-	Gender     int64     `orm:"column(gender);default(0)" json:"gender"` //0 - unknown, 1 - male, 2 - female
-  Avatar     string    `orm:"column(avatar);size(30)" json:"avatar"`
+	Group      int64     `orm:"column(group);default(1)" json:"group,omitempty"`
+	FirstName  string    `orm:"column(first_name);size(25)" json:"firstName,omitempty"`
+	SecondName string    `orm:"column(second_name);size(25)" json:"secondName,omitempty"`
+	LastName   string    `orm:"column(last_name);size(25)" json:"lastName,omitempty"`
+	BirthDate  time.Time `orm:"column(birth_date);type(date)" json:"birthDate,omitempty"`
+	Gender     int64     `orm:"column(gender);default(0)" json:"gender,omitempty"` //0 - unknown, 1 - male, 2 - female
+  Avatar     string    `orm:"column(avatar);size(30)" json:"avatar,omitempty"`
 }
 
 func (u *User) TableName() string {
@@ -25,12 +25,19 @@ func (u *User) TableName() string {
 
 func (u *User) MarshalJSON() ([]byte, error) {
 	type Alias User
+
+  var birthDate string
+  if u.BirthDate.IsZero() {
+		birthDate = ""
+	} else {
+		birthDate = u.BirthDate.Format("2006-01-02")
+	}
 	return json.Marshal(&struct {
 		*Alias
-		BirthDate string `json:"birthDate"`
+		BirthDate string `json:"birthDate,omitempty"`
 	}{
 		Alias:     (*Alias)(u),
-		BirthDate: u.BirthDate.Format("2006-01-02"),
+		BirthDate: birthDate,
 	})
 }
 

@@ -237,9 +237,10 @@ func (c *MainController) addEventTags(eventId int64, tagIds []int64) bool {
 	var ok bool
 	o := orm.NewOrm()
 	for _, tagId := range tagIds {
+		event := models.Event{Id: eventId}
 		tagEvent := models.EventTag{
-			EventId: eventId,
-			TagId:   tagId,
+			Event: &event,
+			TagId: tagId,
 		}
 
 		if _, err := o.Insert(&tagEvent); err != nil {
@@ -258,6 +259,20 @@ func (c *MainController) getTagsByEventId(id int64) *[]string {
 		FROM tags
 		INNER JOIN events_tags ON tags.id = events_tags.tag_id
 		WHERE event_id = ?`, id).QueryRows(&tags); err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &tags
+}
+
+func (c *MainController) getTopFiveTags() *[]models.Tag {
+	var tags []models.Tag
+	o := orm.NewOrm()
+	if _, err := o.Raw(`SELECT t.*
+FROM tags t INNER JOIN (events_tags et INNER JOIN events e ON e.id = et.event_id) ON et.tag_id = t.id
+GROUP BY t.id
+ORDER BY count(*) DESC
+LIMIT 5`).QueryRows(&tags); err != nil {
 		log.Println(err)
 		return nil
 	}

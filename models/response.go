@@ -5,14 +5,26 @@ type Error struct {
 	Code        float64 `json:"code"`
 }
 
-type OkResponse struct {
-	Ok     bool    `json:"ok"`
-	Errors []Error `json:"errors"`
+type DefaultResponse struct {
+	Ok     bool     `json:"ok"`
+	Errors *[]Error `json:"errors,omitempty"`
+	Error  *Error   `json:"error,omitempty"`
+}
+
+type IndexPageResponse struct {
+	SoonerEvents *[]Event       `json:"soonerEvents,omitempty"`
+	EventsByTags *[]EventsByTag `json:"eventsByTags,omitempty"`
+}
+
+type EventsByTag struct {
+	Tag    string     `json:"tag,omitempty"`
+	Events *[]Event `json:"events,omitempty"`
 }
 
 type LoginResponse struct {
-	IdToken string  `json:"idToken"`
-	Errors  []Error `json:"errors"`
+	Ok      bool     `json:"ok"`
+	IdToken string   `json:"idToken,omitempty"`
+	Errors  *[]Error `json:"errors,omitempty"`
 }
 
 type QueryEventsResponse struct {
@@ -21,12 +33,12 @@ type QueryEventsResponse struct {
 }
 
 type GetEventResponse struct {
-	Event      *Event    `json:"event"`
-	Organizer  *User     `json:"organizer"`
-	Tags       *[]string `json:"tags"`
-	IsTimeSet  bool      `json:"isTimeSet"`
-	IsActivist bool      `json:"isActivist"`
-	IsJoined   bool      `json:"isJoined"`
+	Event       *Event    `json:"event"`
+	Organizer   *User     `json:"organizer"`
+	Tags        *[]string `json:"tags,omitempty"`
+	AsVolunteer bool      `json:"asVolunteer,omitempty"`
+	IsJoined    bool      `json:"isJoined,omitempty"`
+	HasForm     bool      `json:"hasForm,omitempty"`
 }
 
 type GetUserInfoResponse struct {

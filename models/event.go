@@ -7,28 +7,47 @@ import (
 )
 
 type Event struct {
-	Id          int64     `orm:"column(id)" json:"id"`
-	UserId      int64     `orm:"column(user_id)" json:"userId"`
-	Title       string    `orm:"column(title);size(120)" json:"title"`
-	Description string    `orm:"column(description);type(text)" json:"description"`
-	CreateDate  time.Time `orm:"column(create_date);auto_now_add;type(date)" json:"createDate"`
-	EventDate   time.Time `orm:"column(event_date);type(date)" json:"eventDate"`
-	EventTime   time.Time `orm:"column(event_time);type(datetime)" json:"eventTime"`
-	Volunteers  bool      `orm:"column(volunteers);default(0)" json:"volunteers"`
-	Cover       string    `orm:"column(cover);size(128)" json:"cover"`
+	Id          int64      `orm:"column(id);pk" json:"id"`
+	Organizer   *User      `orm:"column(user_id);rel(fk)" json:"userId"`
+	Title       string     `orm:"column(title);size(120)" json:"title,omitempty"`
+	Description string     `orm:"column(description);type(text)" json:"description,omitempty"`
+	CreateDate  time.Time `orm:"column(create_date);auto_now_add;type(date)" json:"createDate,omitempty"`
+	EventDate   time.Time `orm:"column(event_date);type(date)" json:"eventDate,omitempty"`
+	EventTime   time.Time `orm:"column(event_time);type(datetime)" json:"eventTime,omitempty"`
+	Volunteers  bool       `orm:"column(volunteers);default(0)" json:"volunteers,omitempty"`
+	Cover       string     `orm:"column(cover);size(128)" json:"cover,omitempty"`
 }
 
 func (e *Event) MarshalJSON() ([]byte, error) {
 	type Alias Event
+
 	loc, _ := time.LoadLocation("Etc/GMT")
+	var createDate, eventDate, eventTime string
+	if e.CreateDate.IsZero() {
+		createDate = ""
+	} else {
+		createDate = e.CreateDate.Format("2006-01-02")
+	}
+	if e.EventDate.IsZero() {
+		eventDate = ""
+	} else {
+		eventDate = e.EventDate.Format("2006-01-02")
+	}
+	if e.EventTime.IsZero() {
+		eventTime = ""
+	} else {
+		eventTime = e.EventTime.In(loc).Format("15:04")
+	}
 	return json.Marshal(&struct {
 		*Alias
-		EventDate string `json:"eventDate"`
-		EventTime string `json:"eventTime"`
+		CreateDate string `json:"createDate,omitempty"`
+		EventDate  string `json:"eventDate,omitempty"`
+		EventTime  string `json:"eventTime,omitempty"`
 	}{
-		Alias:     (*Alias)(e),
-		EventDate: e.EventDate.Format("2006-01-02"),
-		EventTime: e.EventTime.In(loc).Format("15:04"),
+		Alias:      (*Alias)(e),
+		CreateDate: createDate,
+		EventDate:  eventDate,
+		EventTime:  eventTime,
 	})
 }
 
@@ -51,7 +70,7 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 			if id, ok := v.(float64); !ok {
 				return errors.New("Bad userId field")
 			} else {
-				e.UserId = int64(id)
+				e.Organizer.Id = int64(id)
 			}
 		case "volunteers":
 			if vol, ok := v.(bool); !ok {

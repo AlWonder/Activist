@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 func (c *MainController) QueryEvents() {
@@ -26,17 +27,21 @@ func (c *MainController) QueryEvents() {
 }
 
 func (c *MainController) QueryEventsByTag() {
+	var response models.QueryEventsResponse
+	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad page parameter", 404, 404)
+	}
 	log.Println(c.Ctx.Input.Param(":tag"))
-	events := c.getEventsByTag(c.Ctx.Input.Param(":tag"))
-	c.Data["json"] = &events
+	response.Events, response.Count = c.getEventsByTag(c.Ctx.Input.Param(":tag"), page)
+	c.Data["json"] = &response
 	c.ServeJSON()
 }
 
 func (c *MainController) GetEvent() {
 	var response models.GetEventResponse
-	response.IsActivist = false
-	response.IsJoined = false
-	response.IsTimeSet = true
+	authenticated := false
+	time.Sleep(time.Second)
 
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
@@ -49,10 +54,13 @@ func (c *MainController) GetEvent() {
 		log.Println("No valid token found")
 	} else {
 		if user := c.getUserById(int64(payload["sub"].(float64))); user != nil {
+			authenticated = true
 			if user.Group == 1 {
-				response.IsActivist = true
-				response.IsJoined = c.isJoined(user.Id, id)
+				response.IsJoined, response.AsVolunteer = c.isJoined(user.Id, id)
 			}
+		} else {
+			c.sendErrorWithStatus("No user found", 403, 403)
+			return
 		}
 	}
 
@@ -61,15 +69,21 @@ func (c *MainController) GetEvent() {
 		c.sendErrorWithStatus("Event not found", 404, 404)
 		return
 	}
-	if response.Event.EventTime.IsZero() {
-		response.IsTimeSet = false
-	}
-	response.Organizer = c.getUserById(response.Event.UserId)
+	response.Organizer = c.getUserById(response.Event.Organizer.Id)
 	if response.Organizer == nil {
 		c.sendErrorWithStatus("Organizer not found", 404, 404)
 		return
 	}
+	// Ignore email field if client isn't authenticated
+	if !authenticated {
+		response.Organizer.Email = ""
+	}
 	response.Tags = c.getTagsByEventId(response.Event.Id)
+
+	if response.AsVolunteer {
+		// I gotta make it later, i don't know for now how many forms an organizer is allowed to have
+	}
+
 	c.Data["json"] = &response
 	c.ServeJSON()
 }
@@ -135,7 +149,8 @@ func (c *MainController) AddEvent() {
 		return
 	}
 
-	request.Event.UserId = userId
+	organizer := models.User{Id: userId}
+	request.Event.Organizer = &organizer
 
 	// Validation
 	valid := validation.Validation{}
@@ -350,7 +365,7 @@ func (c *MainController) EditEvent() {
 
 	o := orm.NewOrm()
 
-	if request.Event.UserId != userId {
+	if request.Event.Organizer.Id != userId {
 		log.Println("User is not allowed to edit the event")
 		c.sendErrorWithStatus("You're not allowed to edit this event", 403, 403)
 		return
@@ -490,7 +505,7 @@ func (c *MainController) JoinEvent() {
 			return
 		}
 
-		if formId, ok = c.getFormIdByOrgId(event.UserId); !ok {
+		if formId, ok = c.getFormIdByOrgId(event.Organizer.Id); !ok {
 			c.sendErrorWithStatus("The organizer doesn't have a volunteer form", 500, 500)
 			return
 		}
@@ -504,7 +519,7 @@ func (c *MainController) JoinEvent() {
 
 	// Sending successful response
 	if volunteer == true {
-		c.Data["json"] = models.JoinEventVolunteerResponse{Ok: true, HasForm: hasForm, OrganizerId: event.UserId}
+		c.Data["json"] = models.JoinEventVolunteerResponse{Ok: true, HasForm: hasForm, OrganizerId: event.Organizer.Id}
 		c.ServeJSON()
 	} else {
 		c.sendSuccess()
@@ -555,11 +570,20 @@ func (c *MainController) getAllEvents(page int64) (*[]models.Event, int64) {
 					 FROM events
 					 INNER JOIN users ON events.user_id=users.id
 					 WHERE users.group = 2
-					 ORDER BY id DESC
+					 ORDER BY events.id DESC
 					 LIMIT ?, 12`,
 		(page-1)*12).QueryRows(&events); err != nil {
 		log.Println(err)
 		return nil, 0
+	}
+	for _, event := range events {
+		if err := o.Read(event.Organizer); err != nil {
+			log.Println(err)
+			return nil, 0
+		} else {
+			event.Organizer.Email = ""
+			event.Organizer.BirthDate = time.Time{}
+		}
 	}
 
 	count, err := o.QueryTable("events").Count()
@@ -570,7 +594,7 @@ func (c *MainController) getAllEvents(page int64) (*[]models.Event, int64) {
 	return &events, count
 }
 
-func (c *MainController) getEventsByTag(tag string) *[]models.Event {
+func (c *MainController) getEventsByTag(tag string, page int64) (*[]models.Event, int64) {
 	var events []models.Event
 
 	o := orm.NewOrm()
@@ -579,19 +603,43 @@ func (c *MainController) getEventsByTag(tag string) *[]models.Event {
 					 FROM events
 					 INNER JOIN (events_tags INNER JOIN tags ON events_tags.tag_id = tags.id)
 					 ON events.id = events_tags.event_id
-					 WHERE tags.name = ?`,
-		tag).QueryRows(&events)
+					 WHERE tags.name = ?
+					 ORDER BY events.id DESC
+					 LIMIT ?, 12`,
+		tag, (page-1)*12).QueryRows(&events)
 	if err != nil {
 		log.Println(err)
-		return nil
+		return nil, 0
 	}
-	return &events
+
+	for _, event := range events {
+		if err := o.Read(event.Organizer); err != nil {
+			log.Println(err)
+			return nil, 0
+		} else {
+			event.Organizer.Email = ""
+			event.Organizer.BirthDate = time.Time{}
+		}
+	}
+
+	var count int64
+	err = o.Raw(`SELECT COUNT(*)
+					 FROM events
+					 INNER JOIN (events_tags INNER JOIN tags ON events_tags.tag_id = tags.id)
+					 ON events.id = events_tags.event_id
+					 WHERE tags.name = ?`, tag).QueryRow(&count)
+	log.Println(count)
+	if err != nil {
+		log.Println(err)
+		return nil, 0
+	}
+	return &events, count
 }
 
 func (c *MainController) getUserEvents(userId int64) *[]models.Event {
 	var events []models.Event
 	o := orm.NewOrm()
-	if _, err := o.Raw("SELECT * FROM events WHERE user_id = ?", userId).QueryRows(&events); err != nil {
+	if _, err := o.Raw("SELECT * FROM events WHERE user_id = ? ORDER BY id DESC", userId).QueryRows(&events); err != nil {
 		return nil
 	}
 	return &events
@@ -637,24 +685,25 @@ func (c *MainController) joinEvent(user, event int64, volunteer bool) bool {
 	return true
 }
 
-func (c *MainController) isJoined(user, event int64) bool {
+func (c *MainController) isJoined(user, event int64) (bool, bool) {
 	o := orm.NewOrm()
 	userEvent := models.UserEvent{UserId: user, EventId: event}
 	err := o.Read(&userEvent, "user_id", "event_id")
 
 	if err == orm.ErrNoRows {
 		log.Println("No result found.")
-		return false
+		return false, false
 	} else if err == orm.ErrMissPK {
 		log.Println("No primary key found.")
-		return false
+		return false, false
 	}
-	return true
+	return true, userEvent.AsVolunteer
 }
 
 func (c *MainController) eventBelongsToUser(eventId, userId int64) bool {
 	o := orm.NewOrm()
-	event := models.Event{Id: eventId, UserId: userId}
+	organizer := models.User{Id: userId}
+	event := models.Event{Id: eventId, Organizer: &organizer}
 	err := o.Read(&event, "id", "user_id")
 
 	if err == orm.ErrNoRows {
@@ -692,32 +741,41 @@ func (c *MainController) appendAddEventError(response *models.AddEventResponse, 
 	})
 }
 
-/*----- I will destroy everything under this string. But later. -----*/
-
-/*
-
-func (c *MainController) getParticipants(eventId int64) *[]models.User {
-	var users []models.User
-
+func (c *MainController) getSoonerEvents(limit int64) *[]models.Event {
+	var events []models.Event
 	o := orm.NewOrm()
-
-	_, err := o.Raw(`SELECT users.*
-					 FROM users INNER JOIN (users_events INNER JOIN events ON events.id = users_events.event_id)
-					 ON users.id = users_events.user_id
-					 WHERE events.id = ? AND agree = 1`, eventId).QueryRows(&users)
-	if err != nil {
-		log.Println("getParticipants: ", err)
+	_, err := o.Raw(`SELECT *
+		FROM events
+		WHERE event_date >= CURDATE()
+		ORDER BY event_date
+		LIMIT ?`, limit).QueryRows(&events)
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return nil
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
 		return nil
 	}
-	log.Println(users)
-	return &users
+	return &events
 }
 
-
-
-func (c *MainController) addTag(name string) {
+func (c *MainController) getTopFiveEventsByTags(tags *[]models.Tag) *[]models.EventsByTag {
+	var eTags []models.EventsByTag
 	o := orm.NewOrm()
-	tag := models.Tag{Name: name}
-	o.Insert(&tag)
+	for _, tag := range *tags {
+		var events []models.Event
+		_, err := o.Raw(`SELECT e.*
+			FROM events e INNER JOIN (events_tags et INNER JOIN tags t ON t.id = et.tag_id) ON et.event_id = e.id
+			WHERE t.id = ?
+			ORDER BY e.id DESC
+			LIMIT 5`, tag.Id).QueryRows(&events)
+		if err == orm.ErrNoRows {
+			log.Println("No result found.")
+		} else if err == orm.ErrMissPK {
+			log.Println("No primary key found.")
+		} else {
+			eTags = append(eTags, models.EventsByTag{Tag: tag.Name, Events: &events})
+		}
+	}
+	return &eTags
 }
-*/

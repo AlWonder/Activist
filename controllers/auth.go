@@ -35,23 +35,17 @@ func (c *MainController) Login() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendLoginError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			//c.appendLoginError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
-	}
-
-	// Checking for having validation errors
-	if response.Errors != nil {
-		log.Println("Errors while singing up")
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.sendError("Неверно введённые данные", 1)
 		return
 	}
 
 	// Getting a user from db
 	user := c.getUserByEmail(request.Email)
 	if user == nil {
-		c.sendError("Bad email or password", 14)
+		c.sendError("Неверный email / пароль", 14)
 		return
 	}
 
@@ -69,15 +63,16 @@ func (c *MainController) Login() {
 	}
 
 	if !pk.MatchPassword(request.Password, &x) {
-		c.sendError("Bad email or password", 14)
+		c.sendError("Неверный email / пароль", 14)
 		return
 	}
 
 	// Generating a token and sending it to a client
 	token := c.generateToken(user.Id)
+	response.Ok = true
 	response.IdToken = token
 
-	c.Data["json"] = response
+	c.Data["json"] = &response
 	c.ServeJSON()
 }
 
@@ -230,7 +225,7 @@ func (c *MainController) checkIntField(userProperty *int64, field interface{}, r
 
 // Appends an error into the response body
 func (c *MainController) appendLoginError(response *models.LoginResponse, message string, code float64) {
-	response.Errors = append(response.Errors, models.Error{
+	*response.Errors = append(*response.Errors, models.Error{
 		UserMessage: message,
 		Code:        code,
 	})

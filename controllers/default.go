@@ -5,6 +5,7 @@ import (
 	"gopkg.in/gographics/imagick.v2/imagick"
 	"log"
 	"os"
+	"activist_api/models"
 )
 
 type MainController struct {
@@ -15,6 +16,15 @@ func (c *MainController) Get() {
 	c.Data["Website"] = "beego.me"
 	c.Data["Email"] = "astaxie@gmail.com"
 	c.TplName = "index.tpl"
+}
+
+func (c *MainController) IndexPage() {
+	var response models.IndexPageResponse
+	response.SoonerEvents = c.getSoonerEvents(3)
+	tags := c.getTopFiveTags()
+	response.EventsByTags = c.getTopFiveEventsByTags(tags)
+	c.Data["json"] = &response
+	c.ServeJSON()
 }
 
 /*func (c *MainController) UploadFile() {
@@ -71,7 +81,7 @@ func transformCover(file *os.File, path string) (bool) {
 		return false
 	}
 
-	// Use fixed aspect ratio 
+	// Use fixed aspect ratio
 	const ratio = 1.9
 
 	width := mw.GetImageWidth()
