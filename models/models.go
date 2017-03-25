@@ -10,28 +10,10 @@ type EventTag struct {
 	TagId   int64 `orm:"column(tag_id)" json:"tagId,omitempty"`
 }
 
-type FormTemplate struct {
-	Id           int64  `orm:"column(id)" json:"id"`
-	OrganizerId  int64  `orm:"column(organizer_id)" json:"organizerId,omitempty"`
-	TemplatePath string `orm:"column(template_path);size(64)" json:"templatePath,omitempty"`
-}
-
-type FormUser struct {
-	Id            int64  `orm:"column(id)" json:"id"`
-	ParticipantId int64  `orm:"column(participant_id)" json:"participantId,omitempty"`
-	FormId        int64  `orm:"column(form_id)" json:"formId,omitempty"`
-	Path          string `orm:"column(path);size(64)" json:"path,omitempty"`
-}
-
 type Image struct {
 	Id      int64  `orm:"column(id)" json:"id"`
 	EventId int64  `orm:"column(event_id)" json:"eventId,omitempty"`
 	Src     string `orm:"column(src);size(64)" json:"src,omitempty"`
-}
-
-type Tag struct {
-	Id   int64  `orm:"column(id);auto" json:"id"`
-	Name string `orm:"column(name);size(30);unique" json:"name,omitempty"`
 }
 
 type TagStatus struct {

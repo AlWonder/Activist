@@ -10,7 +10,6 @@ import (
 	"github.com/astaxie/beego/validation"
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
-	"strconv"
 	"time"
 )
 
@@ -43,7 +42,7 @@ func (c *MainController) Login() {
 	}
 
 	// Getting a user from db
-	user := c.getUserByEmail(request.Email)
+	user := models.GetUserByEmail(request.Email)
 	if user == nil {
 		c.sendError("Неверный email / пароль", 14)
 		return
@@ -106,7 +105,7 @@ func (c *MainController) SignUp() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendLoginError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			models.AppendError(&response.Errors, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -165,13 +164,12 @@ func (c *MainController) generateToken(userId int64) string {
 // Checks authorization header
 // If it's valid, returns a payload
 func (c *MainController) validateToken() (jwt.MapClaims, error) {
-	// Getting a token from request header
+	// Get a token from request header
 	tokenString := c.Ctx.Input.Header("Authorization")
 	if tokenString == "" {
 		log.Println("Token not found")
 		return nil, errors.New("Couldn't find Authorization header")
 	}
-	log.Println(tokenString)
 
 	token, err := jwt.Parse(tokenString[7:], func(token *jwt.Token) (interface{}, error) {
 		return privateKey, nil
@@ -198,44 +196,4 @@ func (c *MainController) validateToken() (jwt.MapClaims, error) {
 		log.Println("Couldn't handle this token:", err)
 		return nil, err
 	}
-}
-
-// Checks that json field is string and appends an error into response if it isn't
-func (c *MainController) checkStringField(userProperty *string, field interface{}, response *models.LoginResponse, fieldName string) {
-	if checkedField, ok := field.(string); ok {
-		*userProperty = checkedField
-		log.Println(checkedField)
-	} else {
-		c.appendLoginError(response, "Datatype error in "+fieldName, 400)
-	}
-}
-
-// The same as previous but for int64
-func (c *MainController) checkIntField(userProperty *int64, field interface{}, response *models.LoginResponse, fieldName string) {
-	if stringField, ok := field.(string); ok {
-		if checkedField, err := strconv.ParseInt(stringField, 10, 64); err != nil {
-			c.appendLoginError(response, "Datatype error in "+fieldName, 400)
-		} else {
-			*userProperty = checkedField
-		}
-	} else {
-		c.appendLoginError(response, "Datatype error in "+fieldName, 400)
-	}
-}
-
-// Appends an error into the response body
-func (c *MainController) appendLoginError(response *models.LoginResponse, message string, code float64) {
-	*response.Errors = append(*response.Errors, models.Error{
-		UserMessage: message,
-		Code:        code,
-	})
-}
-
-// The same but for get user response
-// Where are my generics Google?!
-func (c *MainController) appendGetUserInfoError(response *models.GetUserInfoResponse, message string, code float64) {
-	response.Errors = append(response.Errors, models.Error{
-		UserMessage: message,
-		Code:        code,
-	})
 }

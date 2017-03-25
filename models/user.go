@@ -4,6 +4,8 @@ import (
   "time"
   "errors"
   "encoding/json"
+	"github.com/astaxie/beego/orm"
+	"log"
 )
 
 type User struct {
@@ -107,4 +109,64 @@ func (u *User) UnmarshalJSON(request []byte) (err error) {
 		}
 	}
 	return
+}
+
+func GetUserByEmail(email string) *User {
+	o := orm.NewOrm()
+	user := User{Email: email}
+	err := o.Read(&user, "email")
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return nil
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return nil
+	}
+	return &user
+}
+
+func GetUserById(id int64) *User {
+	o := orm.NewOrm()
+	user := User{Id: id}
+	err := o.Read(&user, "id")
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return nil
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return nil
+	}
+	return &user
+}
+
+func (u *User) IsJoined(event int64) (bool, bool) {
+	o := orm.NewOrm()
+	userEvent := UserEvent{UserId: u.Id, EventId: event}
+	err := o.Read(&userEvent, "user_id", "event_id")
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return false, false
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return false, false
+	}
+	return true, userEvent.AsVolunteer
+}
+
+func (u *User) HasForm(formId int64) bool {
+  o := orm.NewOrm()
+  formUser := FormUser{ ParticipantId: u.Id, FormId: formId }
+  err := o.Read(&formUser, "participant_id", "form_id")
+
+	if err == orm.ErrNoRows {
+		log.Println("No result found.")
+		return false
+	} else if err == orm.ErrMissPK {
+		log.Println("No primary key found.")
+		return false
+	}
+	return true
 }

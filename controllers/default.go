@@ -20,9 +20,9 @@ func (c *MainController) Get() {
 
 func (c *MainController) IndexPage() {
 	var response models.IndexPageResponse
-	response.SoonerEvents = c.getSoonerEvents(3)
-	tags := c.getTopFiveTags()
-	response.EventsByTags = c.getTopFiveEventsByTags(tags)
+	response.SoonerEvents = models.GetSoonerEvents(3)
+	tags := models.GetTopFiveTags()
+	response.EventsByTags = models.GetTopFiveEventsByTags(tags)
 	c.Data["json"] = &response
 	c.ServeJSON()
 }

@@ -3,14 +3,11 @@ package controllers
 import (
 	//"github.com/astaxie/beego"
 	"activist_api/models"
-	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"github.com/astaxie/beego/orm"
 	"github.com/astaxie/beego/validation"
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
-	"os"
 	"strconv"
 	"time"
 )
@@ -21,7 +18,7 @@ func (c *MainController) QueryEvents() {
 	if err != nil {
 		c.sendErrorWithStatus("Bad page parameter", 404, 404)
 	}
-	response.Events, response.Count = c.getAllEvents(page)
+	response.Events, response.Count = models.GetAllEvents(page)
 	c.Data["json"] = &response
 	c.ServeJSON()
 }
@@ -33,7 +30,7 @@ func (c *MainController) QueryEventsByTag() {
 		c.sendErrorWithStatus("Bad page parameter", 404, 404)
 	}
 	log.Println(c.Ctx.Input.Param(":tag"))
-	response.Events, response.Count = c.getEventsByTag(c.Ctx.Input.Param(":tag"), page)
+	response.Events, response.Count = models.GetEventsByTag(c.Ctx.Input.Param(":tag"), page)
 	c.Data["json"] = &response
 	c.ServeJSON()
 }
@@ -53,10 +50,10 @@ func (c *MainController) GetEvent() {
 	if payload, err = c.validateToken(); err != nil {
 		log.Println("No valid token found")
 	} else {
-		if user := c.getUserById(int64(payload["sub"].(float64))); user != nil {
+		if user := models.GetUserById(int64(payload["sub"].(float64))); user != nil {
 			authenticated = true
 			if user.Group == 1 {
-				response.IsJoined, response.AsVolunteer = c.isJoined(user.Id, id)
+				response.IsJoined, response.AsVolunteer = user.IsJoined(id)
 			}
 		} else {
 			c.sendErrorWithStatus("No user found", 403, 403)
@@ -64,12 +61,11 @@ func (c *MainController) GetEvent() {
 		}
 	}
 
-	response.Event = c.getEventById(id)
-	if response.Event == nil {
+	if response.Event = models.GetEventById(id); response.Event == nil {
 		c.sendErrorWithStatus("Event not found", 404, 404)
 		return
 	}
-	response.Organizer = c.getUserById(response.Event.Organizer.Id)
+	response.Organizer = models.GetUserById(response.Event.Organizer.Id)
 	if response.Organizer == nil {
 		c.sendErrorWithStatus("Organizer not found", 404, 404)
 		return
@@ -78,7 +74,7 @@ func (c *MainController) GetEvent() {
 	if !authenticated {
 		response.Organizer.Email = ""
 	}
-	response.Tags = c.getTagsByEventId(response.Event.Id)
+	response.Tags = models.GetTagsByEventId(response.Event.Id)
 
 	if response.AsVolunteer {
 		// I gotta make it later, i don't know for now how many forms an organizer is allowed to have
@@ -94,7 +90,7 @@ func (c *MainController) QueryUserEvents() {
 		log.Fatal(err)
 		return
 	}
-	events := c.getUserEvents(id)
+	events := models.GetUserEvents(id)
 	c.Data["json"] = &events
 	c.ServeJSON()
 }
@@ -112,14 +108,14 @@ func (c *MainController) QueryJoinedEvents() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user := models.GetUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 && user.Id != userId {
 			c.sendErrorWithStatus("You're not allowed to do this", 403, 403)
 			return
 		}
 	}
 
-	events := c.getJoinedEvents(userId)
+	events := models.GetJoinedEvents(userId)
 	c.Data["json"] = &events
 	c.ServeJSON()
 }
@@ -134,7 +130,7 @@ func (c *MainController) AddEvent() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user := models.GetUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
 			c.sendErrorWithStatus("You're not allowed to create events", 403, 403)
 			return
@@ -155,12 +151,13 @@ func (c *MainController) AddEvent() {
 	// Validation
 	valid := validation.Validation{}
 	valid.Required(request.Event.Title, "title")
+	valid.MaxSize(request.Event.Title, 120, "title")
 	valid.Required(request.Event.Description, "description")
 	valid.Required(request.Event.EventDate, "event_date")
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendAddEventError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			models.AppendError(&response.Errors, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -168,7 +165,7 @@ func (c *MainController) AddEvent() {
 	// Checking for having errors
 	if response.Errors != nil {
 		log.Println("Errors while singing up")
-		c.Data["json"] = response
+		c.Data["json"] = &response
 		c.ServeJSON()
 		return
 	}
@@ -177,6 +174,7 @@ func (c *MainController) AddEvent() {
 
 	// Inserting an event into the database
 	if id, err := o.Insert(&request.Event); err != nil {
+		log.Println(err)
 		c.sendError("Couldn't create an event", 14)
 		return
 	} else {
@@ -186,9 +184,9 @@ func (c *MainController) AddEvent() {
 
 	// Tags
 	log.Println(request.Tags)
-	tagIds := c.addTags(request.Tags)
+	tagIds := models.AddTags(request.Tags)
 
-	if ok := c.addEventTags(eventId, tagIds); !ok {
+	if ok := models.AddEventTags(eventId, tagIds); !ok {
 		c.sendError("Couldn't add tags to the event", 14)
 		return
 	}
@@ -197,144 +195,6 @@ func (c *MainController) AddEvent() {
 	response.EventId = eventId
 	c.Data["json"] = response
 	c.ServeJSON()
-}
-
-func (c *MainController) AddAvatar() {
-	var userId int64
-
-	if payload, err := c.validateToken(); err != nil {
-		log.Println(err)
-		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
-		return
-	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
-		userId = user.Id
-	}
-
-	log.Println("Uploading...")
-	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
-	if file != nil {
-		b := make([]byte, 8)
-		rand.Read(b)
-		newName := fmt.Sprintf("%x", b)
-
-		log.Println(header.Header["Content-Type"])
-		if header.Header["Content-Type"][0] != "image/png" && header.Header["Content-Type"][0] != "image/jpeg" {
-			c.sendError("It's not an image", 1)
-			return
-		}
-
-		// save to server
-		path := "static/usrfiles/user/avatar/" + newName[:2]
-		_ = os.Mkdir(path, os.ModePerm)
-		path += "/" + newName + ".jpg"
-		err := c.SaveToFile("file", path)
-		log.Println(err)
-
-		var sFile *os.File
-		if sFile, err = os.Open(path); err != nil {
-			log.Println(err)
-			c.sendError("Couldn't open a file", 1)
-			return
-		}
-		if ok := transformAvatar(sFile, path); !ok {
-			c.sendError("Couldn't transform an avatar", 1)
-		}
-
-		log.Println(path)
-
-		o := orm.NewOrm()
-
-		user := models.User{Id: userId}
-		if o.Read(&user) == nil {
-			user.Avatar = path[28:]
-			if _, err := o.Update(&user); err == nil {
-				c.sendSuccess()
-				return
-			}
-			c.sendError("Couldn't update an avatar", 14)
-			return
-		}
-		c.sendError("Couldn't find a user", 14)
-	} else {
-		c.sendError("Couldn't detect any file in the request", 1)
-	}
-}
-
-func (c *MainController) AddCover() {
-	var eventId, userId int64
-
-	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
-	if err != nil {
-		c.sendErrorWithStatus("Bad request", 400, 400)
-		return
-	}
-
-	if payload, err := c.validateToken(); err != nil {
-		log.Println(err)
-		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
-		return
-	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
-		userId = user.Id
-	}
-
-	// Need checking for right event owner and correct file
-	if !c.eventBelongsToUser(eventId, userId) {
-		c.sendErrorWithStatus("You're not allowed to upload covers to this event", 403, 403)
-		return
-	}
-
-	log.Println("Uploading...")
-	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
-	if file != nil {
-		b := make([]byte, 8)
-		rand.Read(b)
-		newName := fmt.Sprintf("%x", b)
-
-		log.Println(header.Header["Content-Type"])
-		if header.Header["Content-Type"][0] != "image/png" && header.Header["Content-Type"][0] != "image/jpeg" {
-			c.sendError("It's not an image", 1)
-			return
-		}
-
-		// save to server
-		path := "static/usrfiles/event/" + newName[:2]
-		_ = os.Mkdir(path, os.ModePerm)
-		path += "/" + newName[2:4]
-		_ = os.Mkdir(path, os.ModePerm)
-		path += "/" + newName + ".jpg"
-		err := c.SaveToFile("file", path)
-		log.Println(err)
-
-		var sFile *os.File
-		if sFile, err = os.Open(path); err != nil {
-			log.Println(err)
-			c.sendError("Couldn't open a file", 1)
-			return
-		}
-		if ok := transformCover(sFile, path); !ok {
-			c.sendError("Couldn't transform an image", 1)
-		}
-
-		log.Println(path)
-
-		o := orm.NewOrm()
-
-		event := models.Event{Id: eventId}
-		if o.Read(&event) == nil {
-			event.Cover = path[22:]
-			if _, err := o.Update(&event); err == nil {
-				c.sendSuccess()
-				return
-			}
-			c.sendError("Couldn't update a cover", 14)
-			return
-		}
-		c.sendError("Couldn't find an event", 14)
-	} else {
-		c.sendError("Couldn't detect a file in the request", 1)
-	}
 }
 
 func (c *MainController) EditEvent() {
@@ -347,7 +207,7 @@ func (c *MainController) EditEvent() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user := models.GetUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
 			c.sendErrorWithStatus("You're not allowed to edit events", 403, 403)
 			return
@@ -379,7 +239,7 @@ func (c *MainController) EditEvent() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			c.appendAddEventError(&response, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			models.AppendError(&response.Errors, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -400,14 +260,14 @@ func (c *MainController) EditEvent() {
 	}
 
 	// Tags
-	if err := c.deleteEventTags(request.Event.Id, request.RemovedTags); err != nil {
+	if err := models.DeleteEventTags(request.Event.Id, request.RemovedTags); err != nil {
 		log.Println(err)
-		c.appendAddEventError(&response, "Не удалось удалить теги.", 400)
+		models.AppendError(&response.Errors, "Не удалось удалить теги.", 400)
 	}
 
-	tagIds := c.addTags(request.AddedTags)
-	if ok := c.addEventTags(request.Event.Id, tagIds); !ok {
-		c.appendAddEventError(&response, "Ошибка при привязке тегов", 400)
+	tagIds := models.AddTags(request.AddedTags)
+	if ok := models.AddEventTags(request.Event.Id, tagIds); !ok {
+		models.AppendError(&response.Errors, "Ошибка при привязке тегов", 400)
 	}
 
 	// Checking for having errors
@@ -437,7 +297,7 @@ func (c *MainController) DeleteEvent() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user := models.GetUserById(int64(payload["sub"].(float64)))
 		if user.Group == 1 {
 			c.sendErrorWithStatus("You're not allowed to delete events", 403, 403)
 			return
@@ -445,7 +305,9 @@ func (c *MainController) DeleteEvent() {
 		userId = user.Id
 	}
 
-	if !c.eventBelongsToUser(eventId, userId) {
+	event := models.Event{Id: eventId}
+
+	if !event.BelongsToUser(userId) {
 		log.Println("User is not allowed to delete the event")
 		c.sendErrorWithStatus("You're not allowed to delete this event", 403, 403)
 		return
@@ -453,7 +315,7 @@ func (c *MainController) DeleteEvent() {
 
 	o := orm.NewOrm()
 
-	if _, err := o.Delete(&models.Event{Id: eventId}); err != nil {
+	if _, err := o.Delete(&event); err != nil {
 		log.Println(err)
 		c.sendError("Couldn't delete an event", 14)
 		return
@@ -463,7 +325,8 @@ func (c *MainController) DeleteEvent() {
 }
 
 func (c *MainController) JoinEvent() {
-	var userId, eventId int64
+	var eventId int64
+	var user *models.User
 	volunteer := false
 	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
 		log.Fatal(err)
@@ -476,12 +339,11 @@ func (c *MainController) JoinEvent() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user = models.GetUserById(int64(payload["sub"].(float64)))
 		if user.Group != 1 {
 			c.sendErrorWithStatus("You're not allowed to join events", 403, 403)
 			return
 		}
-		userId = user.Id
 	}
 
 	var request models.JoinEventRequest
@@ -495,7 +357,7 @@ func (c *MainController) JoinEvent() {
 	var ok bool
 	// Checking if participant already has a volunteer form
 	if volunteer == true {
-		if event = c.getEventById(eventId); event == nil {
+		if event = models.GetEventById(eventId); event == nil {
 			c.sendErrorWithStatus("Couldn't find an event", 500, 500)
 			return
 		}
@@ -505,14 +367,14 @@ func (c *MainController) JoinEvent() {
 			return
 		}
 
-		if formId, ok = c.getFormIdByOrgId(event.Organizer.Id); !ok {
+		if formId, ok = models.GetFormIdByOrgId(event.Organizer.Id); !ok {
 			c.sendErrorWithStatus("The organizer doesn't have a volunteer form", 500, 500)
 			return
 		}
-		hasForm = c.activistHasForm(userId, formId)
+		hasForm = user.HasForm(formId)
 	}
 
-	if ok = c.joinEvent(userId, eventId, volunteer); !ok {
+	if ok = models.JoinEvent(user.Id, eventId, volunteer); !ok {
 		c.sendError("Couldn't join event", 14)
 		return
 	}
@@ -540,242 +402,14 @@ func (c *MainController) DenyEvent() {
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := c.getUserById(int64(payload["sub"].(float64)))
+		user := models.GetUserById(int64(payload["sub"].(float64)))
 		userId = user.Id
 	}
 
-	o := orm.NewOrm()
-
-	log.Println(userId, eventId)
-
-	if num, err := o.Raw(`DELETE
-		FROM users_events
-		WHERE user_id = ? AND event_id = ?`, userId, eventId).Exec(); err != nil {
-		log.Println(err)
+	if ok := models.DenyEvent(userId, eventId); !ok {
 		c.sendError("Couldn't deny an event", 14)
 		return
-	} else {
-		log.Println(num)
 	}
 
 	c.sendSuccess()
-}
-
-func (c *MainController) getAllEvents(page int64) (*[]models.Event, int64) {
-	var events []models.Event
-
-	o := orm.NewOrm()
-
-	if _, err := o.Raw(`SELECT events.*
-					 FROM events
-					 INNER JOIN users ON events.user_id=users.id
-					 WHERE users.group = 2
-					 ORDER BY events.id DESC
-					 LIMIT ?, 12`,
-		(page-1)*12).QueryRows(&events); err != nil {
-		log.Println(err)
-		return nil, 0
-	}
-	for _, event := range events {
-		if err := o.Read(event.Organizer); err != nil {
-			log.Println(err)
-			return nil, 0
-		} else {
-			event.Organizer.Email = ""
-			event.Organizer.BirthDate = time.Time{}
-		}
-	}
-
-	count, err := o.QueryTable("events").Count()
-	if err != nil {
-		log.Println(err)
-		return nil, 0
-	}
-	return &events, count
-}
-
-func (c *MainController) getEventsByTag(tag string, page int64) (*[]models.Event, int64) {
-	var events []models.Event
-
-	o := orm.NewOrm()
-
-	_, err := o.Raw(`SELECT events.*
-					 FROM events
-					 INNER JOIN (events_tags INNER JOIN tags ON events_tags.tag_id = tags.id)
-					 ON events.id = events_tags.event_id
-					 WHERE tags.name = ?
-					 ORDER BY events.id DESC
-					 LIMIT ?, 12`,
-		tag, (page-1)*12).QueryRows(&events)
-	if err != nil {
-		log.Println(err)
-		return nil, 0
-	}
-
-	for _, event := range events {
-		if err := o.Read(event.Organizer); err != nil {
-			log.Println(err)
-			return nil, 0
-		} else {
-			event.Organizer.Email = ""
-			event.Organizer.BirthDate = time.Time{}
-		}
-	}
-
-	var count int64
-	err = o.Raw(`SELECT COUNT(*)
-					 FROM events
-					 INNER JOIN (events_tags INNER JOIN tags ON events_tags.tag_id = tags.id)
-					 ON events.id = events_tags.event_id
-					 WHERE tags.name = ?`, tag).QueryRow(&count)
-	log.Println(count)
-	if err != nil {
-		log.Println(err)
-		return nil, 0
-	}
-	return &events, count
-}
-
-func (c *MainController) getUserEvents(userId int64) *[]models.Event {
-	var events []models.Event
-	o := orm.NewOrm()
-	if _, err := o.Raw("SELECT * FROM events WHERE user_id = ? ORDER BY id DESC", userId).QueryRows(&events); err != nil {
-		return nil
-	}
-	return &events
-}
-
-func (c *MainController) getEventById(id int64) *models.Event {
-	event := models.Event{Id: id}
-
-	o := orm.NewOrm()
-
-	err := o.Raw("SELECT * FROM events WHERE id = ?", id).QueryRow(&event)
-	if err != nil {
-		log.Println(err)
-		return nil
-	}
-	return &event
-}
-
-func (c *MainController) getJoinedEvents(user int64) *[]models.Event {
-	var events []models.Event
-	o := orm.NewOrm()
-
-	_, err := o.Raw(`SELECT e.*
-					 FROM events e
-					 INNER JOIN users_events ue
-					 ON ue.event_id = e.id
-					 WHERE ue.user_id = ?`, user).QueryRows(&events)
-	if err != nil {
-		log.Println("getJoinedEvents: ", err)
-		return nil
-	}
-	return &events
-}
-
-func (c *MainController) joinEvent(user, event int64, volunteer bool) bool {
-	userEvent := models.UserEvent{UserId: user, EventId: event, AsVolunteer: volunteer}
-
-	o := orm.NewOrm()
-	if _, _, err := o.ReadOrCreate(&userEvent, "UserId", "EventId", "AsVolunteer"); err != nil {
-		log.Println("joinEvent: ", err)
-		return false
-	}
-	return true
-}
-
-func (c *MainController) isJoined(user, event int64) (bool, bool) {
-	o := orm.NewOrm()
-	userEvent := models.UserEvent{UserId: user, EventId: event}
-	err := o.Read(&userEvent, "user_id", "event_id")
-
-	if err == orm.ErrNoRows {
-		log.Println("No result found.")
-		return false, false
-	} else if err == orm.ErrMissPK {
-		log.Println("No primary key found.")
-		return false, false
-	}
-	return true, userEvent.AsVolunteer
-}
-
-func (c *MainController) eventBelongsToUser(eventId, userId int64) bool {
-	o := orm.NewOrm()
-	organizer := models.User{Id: userId}
-	event := models.Event{Id: eventId, Organizer: &organizer}
-	err := o.Read(&event, "id", "user_id")
-
-	if err == orm.ErrNoRows {
-		log.Println("No result found.")
-		return false
-	} else if err == orm.ErrMissPK {
-		log.Println("No primary key found.")
-		return false
-	}
-	return true
-}
-
-func (c *MainController) getCover(eventId int64) string {
-	o := orm.NewOrm()
-	var coverPath string
-
-	err := o.Raw(`SELECT src
-		FROM images
-		WHERE event_id = ?`, eventId).QueryRow(&coverPath)
-
-	if err == orm.ErrNoRows {
-		log.Println("No result found.")
-		return ""
-	} else if err == orm.ErrMissPK {
-		log.Println("No primary key found.")
-		return ""
-	}
-	return coverPath
-}
-
-func (c *MainController) appendAddEventError(response *models.AddEventResponse, message string, code float64) {
-	response.Errors = append(response.Errors, models.Error{
-		UserMessage: message,
-		Code:        code,
-	})
-}
-
-func (c *MainController) getSoonerEvents(limit int64) *[]models.Event {
-	var events []models.Event
-	o := orm.NewOrm()
-	_, err := o.Raw(`SELECT *
-		FROM events
-		WHERE event_date >= CURDATE()
-		ORDER BY event_date
-		LIMIT ?`, limit).QueryRows(&events)
-	if err == orm.ErrNoRows {
-		log.Println("No result found.")
-		return nil
-	} else if err == orm.ErrMissPK {
-		log.Println("No primary key found.")
-		return nil
-	}
-	return &events
-}
-
-func (c *MainController) getTopFiveEventsByTags(tags *[]models.Tag) *[]models.EventsByTag {
-	var eTags []models.EventsByTag
-	o := orm.NewOrm()
-	for _, tag := range *tags {
-		var events []models.Event
-		_, err := o.Raw(`SELECT e.*
-			FROM events e INNER JOIN (events_tags et INNER JOIN tags t ON t.id = et.tag_id) ON et.event_id = e.id
-			WHERE t.id = ?
-			ORDER BY e.id DESC
-			LIMIT 5`, tag.Id).QueryRows(&events)
-		if err == orm.ErrNoRows {
-			log.Println("No result found.")
-		} else if err == orm.ErrMissPK {
-			log.Println("No primary key found.")
-		} else {
-			eTags = append(eTags, models.EventsByTag{Tag: tag.Name, Events: &events})
-		}
-	}
-	return &eTags
 }

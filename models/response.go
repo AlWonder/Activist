@@ -24,7 +24,7 @@ type EventsByTag struct {
 type LoginResponse struct {
 	Ok      bool     `json:"ok"`
 	IdToken string   `json:"idToken,omitempty"`
-	Errors  *[]Error `json:"errors,omitempty"`
+	Errors  []Error `json:"errors,omitempty"`
 }
 
 type QueryEventsResponse struct {
@@ -82,4 +82,12 @@ type JoinedUser struct {
 	User        User  `json:"user"`
 	AsVolunteer bool  `json:"asVolunteer"`
 	FormId      int64 `json:"formId"`
+}
+
+
+func AppendError(errors *[]Error, message string, code float64) {
+	*errors = append(*errors, Error{
+		UserMessage: message,
+		Code:        code,
+	})
 }
