@@ -1,20 +1,50 @@
 package controllers
 
 import (
-	"log"
-	"fmt"
-	"os"
 	"crypto/rand"
-	//"github.com/astaxie/beego"
+	"fmt"
+	"log"
+	"net/url"
+	"os"
+	"github.com/astaxie/beego"
 	"activist_api/models"
 	"github.com/astaxie/beego/orm"
-  "strconv"
+	"github.com/mozillazg/go-unidecode"
+	"strconv"
+	"strings"
 )
+type FileController struct {
+	beego.Controller
+}
 
-func (c *MainController) AddAvatar() {
+func (c *FileController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *FileController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *FileController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *FileController) AddAvatar() {
 	var userId int64
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -73,7 +103,7 @@ func (c *MainController) AddAvatar() {
 	}
 }
 
-func (c *MainController) AddCover() {
+func (c *FileController) AddCover() {
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -82,7 +112,7 @@ func (c *MainController) AddCover() {
 		return
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -145,6 +175,158 @@ func (c *MainController) AddCover() {
 			return
 		}
 		c.sendError("Couldn't find an event", 14)
+	} else {
+		c.sendError("Couldn't detect a file in the request", 1)
+	}
+}
+
+func (c *FileController) AddFormTemplate() {
+	defer c.ServeJSON()
+	var userId int64
+
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := models.GetUserById(int64(payload["sub"].(float64)))
+		if user.Group == 1 {
+			c.sendErrorWithStatus("You're not allowed to upload templates", 403, 403)
+			return
+		}
+		userId = user.Id
+	}
+
+	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
+	if file != nil {
+		/*b := make([]byte, 8)
+		rand.Read(b)
+		newName := fmt.Sprintf("%x", b)*/
+
+		// File extension
+		ext := header.Filename[strings.LastIndex(header.Filename, "."):]
+
+		if header.Header["Content-Type"][0] != "application/msword" &&
+			header.Header["Content-Type"][0] != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
+			header.Header["Content-Type"][0] != "application/pdf" &&
+			ext != ".doc" && ext != ".docx" && ext != ".pdf" {
+			c.sendError("Unallowable file format", 1)
+			log.Println("Unallowable file format")
+			return
+		}
+
+		// Change a name to escape unsafe symbols
+		newName := strings.Replace(url.QueryEscape(unidecode.Unidecode(header.Filename)), "+", "_", -1)
+		log.Println(newName)
+
+		// save to server
+		path := "static/usrfiles/user/tpls/" + strconv.Itoa(int(userId))
+		err := os.Mkdir(path, os.ModePerm)
+		if err != nil {
+			log.Println(err)
+		}
+		path += "/"
+
+		// Add an index to a file if one with the same name exists
+		addName := ""
+		index := 0
+		exists := true
+		for exists {
+			if _, err = os.Stat(path + addName + newName); err == nil {
+				index++
+				addName = strconv.Itoa(int(index)) + "_"
+			} else {
+				exists = false
+				err = c.SaveToFile("file", path + addName + newName)
+			}
+		}
+
+		if ok := models.AddFormTemplate(userId, addName + newName); !ok {
+			c.sendError("Couldn't add a template into the database", 14)
+		}
+
+		c.sendSuccess()
+	} else {
+		c.sendError("Couldn't detect a file in the request", 1)
+	}
+}
+
+func (c *FileController) AddVolunteerForm() {
+	defer c.ServeJSON()
+	var userId int64
+
+	tplId, err := strconv.ParseInt(c.Ctx.Input.Param(":tplid"), 0, 64)
+	if err != nil {
+		c.sendErrorWithStatus("Bad request", 400, 400)
+		return
+	}
+
+	// Token validation
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := models.GetUserById(int64(payload["sub"].(float64)))
+		// Check if the user is a participant
+		if user.Group != 1 {
+			c.sendErrorWithStatus("You're not allowed to upload forms", 403, 403)
+			return
+		}
+		userId = user.Id
+	}
+
+	// Check if the form already exists
+	if form := models.GetFormUser(userId, tplId); form != nil {
+		c.sendErrorWithStatus("The form already exists", 409, 409)
+		return
+	}
+
+	file, header, _ := c.GetFile("file")
+	if file != nil {
+		// File extension
+		ext := header.Filename[strings.LastIndex(header.Filename, "."):]
+
+		if header.Header["Content-Type"][0] != "application/msword" &&
+			header.Header["Content-Type"][0] != "application/vnd.openxmlformats-officedocument.wordprocessingml.document" &&
+			header.Header["Content-Type"][0] != "application/pdf" &&
+			ext != ".doc" && ext != ".docx" && ext != ".pdf" {
+			c.sendError("Unallowable file format", 1)
+			log.Println("Unallowable file format")
+			return
+		}
+
+		// Change a name to escape unsafe symbols
+		newName := strings.Replace(url.QueryEscape(unidecode.Unidecode(header.Filename)), "+", "_", -1)
+		log.Println(newName)
+
+		// Save to server
+		path := "static/usrfiles/user/forms/" + strconv.Itoa(int(userId))
+		err := os.Mkdir(path, os.ModePerm)
+		if err != nil {
+			log.Println(err)
+		}
+		path += "/"
+
+		// Add an index to a file if one with the same name exists
+		addName := ""
+		index := 0
+		exists := true
+		for exists {
+			if _, err = os.Stat(path + addName + newName); err == nil {
+				index++
+				addName = strconv.Itoa(int(index)) + "_"
+			} else {
+				exists = false
+				err = c.SaveToFile("file", path + addName + newName)
+			}
+		}
+
+		if ok := models.AddVolunteerForm(userId, tplId, addName + newName); !ok {
+			c.sendError("Couldn't add a template into the database", 14)
+		}
+
+		c.sendSuccess()
 	} else {
 		c.sendError("Couldn't detect a file in the request", 1)
 	}

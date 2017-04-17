@@ -2,14 +2,42 @@ package controllers
 
 import (
 	"log"
-	//"github.com/astaxie/beego"
+	"github.com/astaxie/beego"
 	"activist_api/models"
 	"strconv"
 )
 
-func (c *MainController) GetUserInfo() {
+type UserController struct {
+	beego.Controller
+}
+
+func (c *UserController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *UserController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *UserController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *UserController) GetUserInfo() {
 	var response models.GetUserInfoResponse
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -21,7 +49,7 @@ func (c *MainController) GetUserInfo() {
 	}
 }
 
-func (c *MainController) GetJoinedUsers() {
+func (c *UserController) GetJoinedUsers() {
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -30,7 +58,7 @@ func (c *MainController) GetJoinedUsers() {
 		return
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -66,7 +94,7 @@ func (c *MainController) GetJoinedUsers() {
 
 /*----- I know it's a mess below. I'll fix it. ----- */
 /*
-func (c *MainController) NewPassword() {
+func (c *UserController) NewPassword() {
 	m := c.getSessionInfo()
     if m == nil {
         c.Redirect("/home", 302)
@@ -91,7 +119,7 @@ func (c *MainController) NewPassword() {
 }
 
 
-func (c *MainController) changePassword(userId int64, oldPassword, newPassword string) bool {
+func (c *UserController) changePassword(userId int64, oldPassword, newPassword string) bool {
 	h := pk.HashPassword(oldPassword)
 
 	o := orm.NewOrm()

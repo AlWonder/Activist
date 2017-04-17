@@ -17,13 +17,13 @@ type IndexPageResponse struct {
 }
 
 type EventsByTag struct {
-	Tag    string     `json:"tag,omitempty"`
+	Tag    string   `json:"tag,omitempty"`
 	Events *[]Event `json:"events,omitempty"`
 }
 
 type LoginResponse struct {
-	Ok      bool     `json:"ok"`
-	IdToken string   `json:"idToken,omitempty"`
+	Ok      bool    `json:"ok"`
+	IdToken string  `json:"idToken,omitempty"`
 	Errors  []Error `json:"errors,omitempty"`
 }
 
@@ -84,6 +84,10 @@ type JoinedUser struct {
 	FormId      int64 `json:"formId"`
 }
 
+type GenerateTemplateTokenResponse struct {
+	Ok    bool   `json:"ok"`
+	Token string `json:"token"`
+}
 
 func AppendError(errors *[]Error, message string, code float64) {
 	*errors = append(*errors, Error{

@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/astaxie/beego/orm"
+	"log"
 )
 
 type EventTag struct {
@@ -72,4 +73,5 @@ func init() {
 		new(FormUser), new(Image), new(Tag),
 		new(TagStatus), new(User), new(UserEvent),
 		new(UserGroup))
+	log.Println("Models loaded")
 }

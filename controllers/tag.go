@@ -1,24 +1,53 @@
 package controllers
 
 import (
+	"github.com/astaxie/beego"
 	"activist_api/models"
 	"encoding/json"
 	"log"
 )
 
-func (c *MainController) QueryTags() {
+type TagController struct {
+	beego.Controller
+}
+
+func (c *TagController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *TagController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *TagController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *TagController) QueryTags() {
 	tag := c.Input().Get("query")
 	tags := models.GetTags(tag)
 	c.Data["json"] = &tags
 	c.ServeJSON()
 }
 
-func (c *MainController) GetTagStatus() {
+func (c *TagController) GetTagStatus() {
 	var tagName string
 	var userId, tagId int64
 	tagName = c.Ctx.Input.Param(":tag")
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -48,12 +77,12 @@ func (c *MainController) GetTagStatus() {
 	c.ServeJSON()
 }
 
-func (c *MainController) DeleteTagStatus() {
+func (c *TagController) DeleteTagStatus() {
 	var tagName string
 	var userId, tagId int64
 	tagName = c.Ctx.Input.Param(":tag")
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -77,13 +106,13 @@ func (c *MainController) DeleteTagStatus() {
 	c.sendSuccess()
 }
 
-func (c *MainController) AddTagStatus() {
+func (c *TagController) AddTagStatus() {
 	var tag string
 	var userId int64
 	var status bool
 	tag = c.Ctx.Input.Param(":tag")
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return

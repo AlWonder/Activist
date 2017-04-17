@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/astaxie/beego"
 	"activist_api/models"
 	pk "activist_api/utilities/pbkdf2"
 	"encoding/hex"
@@ -11,11 +12,41 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
 	"time"
+	"crypto/md5"
 )
 
-var privateKey = []byte("B7tfu34bfkderf43bfkj4bfkjerf")
+var privateKey = md5.Sum([]byte("oh" + time.Now().Format("02") + "Bk" + time.Now().Format("06") + "n"))
+var privateFileKey = md5.Sum([]byte(time.Now().Format("312")))
 
-func (c *MainController) Login() {
+type AuthController struct {
+	beego.Controller
+}
+
+func (c *AuthController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *AuthController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *AuthController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *AuthController) Login() {
 	var request models.LoginRequest
 	var response models.LoginResponse
 
@@ -67,7 +98,7 @@ func (c *MainController) Login() {
 	}
 
 	// Generating a token and sending it to a client
-	token := c.generateToken(user.Id)
+	token := generateToken(user.Id)
 	response.Ok = true
 	response.IdToken = token
 
@@ -75,7 +106,7 @@ func (c *MainController) Login() {
 	c.ServeJSON()
 }
 
-func (c *MainController) SignUp() {
+func (c *AuthController) SignUp() {
 	var request models.SignUpRequest
 	var response models.LoginResponse
 
@@ -139,7 +170,7 @@ func (c *MainController) SignUp() {
 		log.Println(err)
 	} else {
 		// Generating a token and sending it to a client
-		token := c.generateToken(request.User.Id)
+		token := generateToken(request.User.Id)
 		response.IdToken = token
 	}
 
@@ -147,36 +178,89 @@ func (c *MainController) SignUp() {
 	c.ServeJSON()
 }
 
-func (c *MainController) generateToken(userId int64) string {
+func generateToken(userId int64) string {
 	// Filling the payload
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"iss": "http://localhost:8080",
+		"iss": "activist",
 		"sub": userId,
 		"iat": time.Now().Unix(),
 		"exp": time.Now().Unix() + 36000,
 	})
 
-	tokenString, _ := token.SignedString(privateKey)
+	tokenString, _ := token.SignedString(privateKey[:])
 
+	return tokenString
+}
+
+func generateFileToken(userId int64, tokenType string) string {
+	// Filling the payload
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"iss": "activist",
+		"sub": userId,
+		"typ": tokenType,
+		"exp": time.Now().Unix() + 300,
+	})
+
+	tokenString, err := token.SignedString(privateFileKey[:])
+
+	if err != nil {
+		log.Println(err)
+	}
 	return tokenString
 }
 
 // Checks authorization header
 // If it's valid, returns a payload
-func (c *MainController) validateToken() (jwt.MapClaims, error) {
+func validateToken(tokenString string) (jwt.MapClaims, error) {
 	// Get a token from request header
-	tokenString := c.Ctx.Input.Header("Authorization")
+	//tokenString := c.Ctx.Input.Header("Authorization")
 	if tokenString == "" {
 		log.Println("Token not found")
-		return nil, errors.New("Couldn't find Authorization header")
+		return nil, errors.New("Token not found")
 	}
 
 	token, err := jwt.Parse(tokenString[7:], func(token *jwt.Token) (interface{}, error) {
-		return privateKey, nil
+		return privateKey[:], nil
 	})
 	if token == nil {
 		return nil, errors.New("Token is null")
 	}
+
+	if token.Valid {
+		return token.Claims.(jwt.MapClaims), nil
+	} else if ve, ok := err.(*jwt.ValidationError); ok {
+		if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+			log.Println("That's not even a token")
+			return nil, err
+		} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+			// Token is either expired or not active yet
+			log.Println("Timing is everything")
+			return nil, err
+		} else {
+			log.Println("Couldn't handle this token:", err)
+			return nil, err
+		}
+	} else {
+		log.Println("Couldn't handle this token:", err)
+		return nil, err
+	}
+}
+
+func validateFileToken(tokenString string) (jwt.MapClaims, error) {
+	// Get a token from request header
+	//tokenString := c.Ctx.Input.Header("Authorization")
+	if tokenString == "" {
+		log.Println("Token not found")
+		return nil, errors.New("Token not found")
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		return privateFileKey[:], nil
+	})
+	if token == nil {
+		return nil, errors.New("Token is null")
+	}
+	log.Println(tokenString)
 
 	if token.Valid {
 		return token.Claims.(jwt.MapClaims), nil

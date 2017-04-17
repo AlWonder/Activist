@@ -2,10 +2,11 @@ package controllers
 
 import (
 	"github.com/astaxie/beego"
-	"gopkg.in/gographics/imagick.v2/imagick"
 	"log"
 	"os"
 	"activist_api/models"
+	"strconv"
+	//"gopkg.in/gographics/imagick.v2/imagick"
 )
 
 type MainController struct {
@@ -27,7 +28,109 @@ func (c *MainController) IndexPage() {
 	c.ServeJSON()
 }
 
-/*func (c *MainController) UploadFile() {
+func (c *MainController) GenerateTemplateToken() {
+
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := models.GetUserById(int64(payload["sub"].(float64)))
+		token := generateFileToken(user.Id, "tpl")
+		response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token }
+		c.Data["json"] = &response
+		c.ServeJSON()
+	}
+}
+
+func (c *MainController) GenerateFormToken() {
+	defer c.ServeJSON()
+
+	formId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+		user := models.GetUserById(int64(payload["sub"].(float64)))
+		if models.IsAllowedToDownloadForm(user.Id, formId) {
+			token := generateFileToken(user.Id, "form")
+			response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token }
+			c.Data["json"] = &response
+		} else {
+			c.sendErrorWithStatus("Access denied", 403, 403)
+		}
+	}
+}
+
+// Checking a token to give a link to a file.
+// I get a token in the get request, and that's not the best way,
+// because a user can send a link to another person and he would give him his token.
+// But I don't know how to do that another way, so I gotta fix it later.
+func (c *MainController) XAccelTemplate() {
+	defer c.ServeJSON()
+	log.Println(c.Input().Get("path"))
+	if payload, err := validateFileToken(c.Input().Get("token")); err != nil {
+		log.Println(err)
+		c.Ctx.Output.Header("X-Accel-Redirect", "/unauthorized")
+		return
+	} else {
+		if payload["typ"] != "tpl" {
+			c.Ctx.Output.Header("X-Accel-Redirect", "/forbidden")
+			return
+		}
+	}
+	//c.Ctx.Output.Header("X-Accel-Redirect", "/api/index")
+	c.Ctx.Output.Header("X-Accel-Redirect", "/api/storage/docs/tpl/" + c.Input().Get("path"))
+}
+
+func (c *MainController) XAccelForm() {
+	defer c.ServeJSON()
+	var userId int64
+	// Get form id from the :id param
+	formId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	// Token validation
+	if payload, err := validateFileToken(c.Input().Get("token")); err != nil {
+		// If the token is invalid
+		log.Println(err)
+		c.Ctx.Output.Header("X-Accel-Redirect", "/unauthorized")
+		return
+	} else {
+		// Check "typ" field in the token. It should be for volunteer forms
+		if payload["typ"] != "form" {
+			c.Ctx.Output.Header("X-Accel-Redirect", "/forbidden")
+			return
+		}
+		user := models.GetUserById(int64(payload["sub"].(float64)))
+		userId = user.Id
+	}
+
+	// Only form and template owners are allowed to download the file
+	if !models.IsAllowedToDownloadForm(userId, formId) {
+		c.Ctx.Output.Header("X-Accel-Redirect", "/forbidden")
+		return
+	}
+
+	form := models.GetFormUserById(formId)
+	if form == nil {
+		// It shouldn't fail here. But who knows.
+		log.Println("What the...")
+	}
+
+	c.Ctx.Output.Header("X-Accel-Redirect", "/api/storage/docs/form/" + strconv.Itoa(int(form.ParticipantId)) + "/" + form.Path)
+}
+
+func (c *MainController) UploadFile() {/*
 	log.Println("Uploading...")
 	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
 	if file != nil {
@@ -67,10 +170,12 @@ func (c *MainController) IndexPage() {
 		c.sendSuccess()
 	} else {
 		c.sendError("Meh", 1)
-	}
-}*/
+	}*/
+}
+
 
 func transformCover(file *os.File, path string) (bool) {
+/*
 	imagick.Initialize()
 	defer imagick.Terminate()
 
@@ -121,11 +226,12 @@ func transformCover(file *os.File, path string) (bool) {
 	if err := mw.WriteImage(path); err != nil {
 		log.Println(err)
 		return false
-	}
+	}*/
 	return true
 }
 
 func transformAvatar(file *os.File, path string) (bool) {
+	/*
 	imagick.Initialize()
 	defer imagick.Terminate()
 
@@ -171,6 +277,6 @@ func transformAvatar(file *os.File, path string) (bool) {
 	if err := mw.WriteImage(path); err != nil {
 		log.Println(err)
 		return false
-	}
+	}*/
 	return true
 }

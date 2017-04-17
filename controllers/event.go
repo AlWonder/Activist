@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	//"github.com/astaxie/beego"
+	"github.com/astaxie/beego"
 	"activist_api/models"
 	"encoding/json"
 	"github.com/astaxie/beego/orm"
@@ -12,7 +12,35 @@ import (
 	"time"
 )
 
-func (c *MainController) QueryEvents() {
+type EventController struct {
+	beego.Controller
+}
+
+func (c *EventController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *EventController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *EventController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+	c.ServeJSON()
+}
+
+func (c *EventController) QueryEvents() {
 	var response models.QueryEventsResponse
 	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
 	if err != nil {
@@ -23,7 +51,7 @@ func (c *MainController) QueryEvents() {
 	c.ServeJSON()
 }
 
-func (c *MainController) QueryEventsByTag() {
+func (c *EventController) QueryEventsByTag() {
 	var response models.QueryEventsResponse
 	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
 	if err != nil {
@@ -35,7 +63,7 @@ func (c *MainController) QueryEventsByTag() {
 	c.ServeJSON()
 }
 
-func (c *MainController) GetEvent() {
+func (c *EventController) GetEvent() {
 	var response models.GetEventResponse
 	authenticated := false
 	time.Sleep(time.Second)
@@ -47,7 +75,7 @@ func (c *MainController) GetEvent() {
 	}
 
 	var payload jwt.MapClaims
-	if payload, err = c.validateToken(); err != nil {
+	if payload, err = validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println("No valid token found")
 	} else {
 		if user := models.GetUserById(int64(payload["sub"].(float64))); user != nil {
@@ -84,7 +112,7 @@ func (c *MainController) GetEvent() {
 	c.ServeJSON()
 }
 
-func (c *MainController) QueryUserEvents() {
+func (c *EventController) QueryUserEvents() {
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
 		log.Fatal(err)
@@ -95,7 +123,7 @@ func (c *MainController) QueryUserEvents() {
 	c.ServeJSON()
 }
 
-func (c *MainController) QueryJoinedEvents() {
+func (c *EventController) QueryJoinedEvents() {
 	var userId int64
 	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
 		log.Fatal(err)
@@ -103,7 +131,7 @@ func (c *MainController) QueryJoinedEvents() {
 		userId = id
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -120,12 +148,12 @@ func (c *MainController) QueryJoinedEvents() {
 	c.ServeJSON()
 }
 
-func (c *MainController) AddEvent() {
+func (c *EventController) AddEvent() {
 	var response models.AddEventResponse
 	response.Ok = false
 	var userId, eventId int64
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -197,12 +225,12 @@ func (c *MainController) AddEvent() {
 	c.ServeJSON()
 }
 
-func (c *MainController) EditEvent() {
+func (c *EventController) EditEvent() {
 	var response models.AddEventResponse
 	response.Ok = false
 	var userId int64
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -283,7 +311,7 @@ func (c *MainController) EditEvent() {
 	c.ServeJSON()
 }
 
-func (c *MainController) DeleteEvent() {
+func (c *EventController) DeleteEvent() {
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -292,7 +320,7 @@ func (c *MainController) DeleteEvent() {
 		return
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -324,7 +352,7 @@ func (c *MainController) DeleteEvent() {
 	c.sendSuccess()
 }
 
-func (c *MainController) JoinEvent() {
+func (c *EventController) JoinEvent() {
 	var eventId int64
 	var user *models.User
 	volunteer := false
@@ -334,7 +362,7 @@ func (c *MainController) JoinEvent() {
 		eventId = id
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
@@ -388,7 +416,7 @@ func (c *MainController) JoinEvent() {
 	}
 }
 
-func (c *MainController) DenyEvent() {
+func (c *EventController) DenyEvent() {
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -397,7 +425,7 @@ func (c *MainController) DenyEvent() {
 		return
 	}
 
-	if payload, err := c.validateToken(); err != nil {
+	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return

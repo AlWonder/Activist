@@ -18,6 +18,7 @@ type Event struct {
 	EventTime    time.Time `orm:"column(event_time);type(datetime)" json:"eventTime,omitempty"`
 	Volunteers   bool      `orm:"column(volunteers);default(0)" json:"volunteers,omitempty"`
 	Cover        string    `orm:"column(cover);size(128)" json:"cover,omitempty"`
+	TemplateId   int64     `orm:"column(template_id)" json:"templateId,omitempty"`
 	Participants int64     `orm:"-" json:"participants"`
 }
 
