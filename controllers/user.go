@@ -16,7 +16,6 @@ func (c *UserController) sendError(message string, code float64) {
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *UserController) sendErrorWithStatus(message string, code float64, status int) {
@@ -25,17 +24,16 @@ func (c *UserController) sendErrorWithStatus(message string, code float64, statu
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *UserController) sendSuccess() {
 	var response models.DefaultResponse
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *UserController) GetUserInfo() {
+	defer c.ServeJSON()
 	var response models.GetUserInfoResponse
 	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
@@ -45,11 +43,11 @@ func (c *UserController) GetUserInfo() {
 		response.User = models.GetUserById(int64(payload["sub"].(float64)))
 		response.User.Password = ""
 		c.Data["json"] = &response
-		c.ServeJSON()
 	}
 }
 
 func (c *UserController) GetJoinedUsers() {
+	defer c.ServeJSON()
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -89,7 +87,6 @@ func (c *UserController) GetJoinedUsers() {
 
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 /*----- I know it's a mess below. I'll fix it. ----- */

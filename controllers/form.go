@@ -17,7 +17,6 @@ func (c *FormController) sendError(message string, code float64) {
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *FormController) sendErrorWithStatus(message string, code float64, status int) {
@@ -26,17 +25,16 @@ func (c *FormController) sendErrorWithStatus(message string, code float64, statu
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *FormController) sendSuccess() {
 	var response models.DefaultResponse
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *FormController) QueryUserFormTemplates() {
+  defer c.ServeJSON()
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
 		log.Fatal(err)
@@ -51,10 +49,10 @@ func (c *FormController) QueryUserFormTemplates() {
 
 	templates := models.GetUserFormTemplates(id)
 	c.Data["json"] = &templates
-	c.ServeJSON()
 }
 
 func (c *FormController) QueryUserForms() {
+  defer c.ServeJSON()
   var userId int64
 
   if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
@@ -72,5 +70,4 @@ func (c *FormController) QueryUserForms() {
 
 	forms := models.GetUserForms(userId)
 	c.Data["json"] = &forms
-	c.ServeJSON()
 }

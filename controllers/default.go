@@ -13,21 +13,43 @@ type MainController struct {
 	beego.Controller
 }
 
+func (c *MainController) sendError(message string, code float64) {
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+}
+
+func (c *MainController) sendErrorWithStatus(message string, code float64, status int) {
+	c.Ctx.Output.SetStatus(status)
+	var response models.DefaultResponse
+	response.Ok = false
+	response.Error = &models.Error{ UserMessage: message, Code: code }
+	c.Data["json"] = &response
+}
+
+func (c *MainController) sendSuccess() {
+	var response models.DefaultResponse
+	response.Ok = true
+	c.Data["json"] = &response
+}
+
 func (c *MainController) Get() {
 	c.sendErrorWithStatus("Page not found", 404, 404)
 	c.ServeJSON()
 }
 
 func (c *MainController) IndexPage() {
+	defer c.ServeJSON()
 	var response models.IndexPageResponse
 	response.SoonerEvents = models.GetSoonerEvents(3)
 	tags := models.GetTopFiveTags()
 	response.EventsByTags = models.GetTopFiveEventsByTags(tags)
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *MainController) GenerateTemplateToken() {
+	defer c.ServeJSON()
 
 	tplId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
@@ -49,7 +71,6 @@ func (c *MainController) GenerateTemplateToken() {
 		}
 		response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token, Template: tpl }
 		c.Data["json"] = &response
-		c.ServeJSON()
 	}
 }
 
@@ -164,6 +185,7 @@ func (c *MainController) XAccelForm() {
 }
 
 func (c *MainController) UploadFile() {/*
+	defer c.ServeJSON()
 	log.Println("Uploading...")
 	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
 	if file != nil {

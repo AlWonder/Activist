@@ -27,7 +27,6 @@ func (c *AuthController) sendError(message string, code float64) {
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *AuthController) sendErrorWithStatus(message string, code float64, status int) {
@@ -36,17 +35,16 @@ func (c *AuthController) sendErrorWithStatus(message string, code float64, statu
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *AuthController) sendSuccess() {
 	var response models.DefaultResponse
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *AuthController) Login() {
+	defer c.ServeJSON()
 	var request models.LoginRequest
 	var response models.LoginResponse
 
@@ -103,10 +101,10 @@ func (c *AuthController) Login() {
 	response.IdToken = token
 
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *AuthController) SignUp() {
+	defer c.ServeJSON()
 	var request models.SignUpRequest
 	var response models.LoginResponse
 
@@ -144,8 +142,7 @@ func (c *AuthController) SignUp() {
 	// Checking for having errors
 	if response.Errors != nil {
 		log.Println("Errors while singing up")
-		c.Data["json"] = response
-		c.ServeJSON()
+		c.Data["json"] = &response
 		return
 	}
 
@@ -174,8 +171,7 @@ func (c *AuthController) SignUp() {
 		response.IdToken = token
 	}
 
-	c.Data["json"] = response
-	c.ServeJSON()
+	c.Data["json"] = &response
 }
 
 func generateToken(userId int64) string {

@@ -21,7 +21,6 @@ func (c *EventController) sendError(message string, code float64) {
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) sendErrorWithStatus(message string, code float64, status int) {
@@ -30,17 +29,16 @@ func (c *EventController) sendErrorWithStatus(message string, code float64, stat
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) sendSuccess() {
 	var response models.DefaultResponse
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) QueryEvents() {
+	defer c.ServeJSON()
 	var response models.QueryEventsResponse
 	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
 	if err != nil {
@@ -48,10 +46,10 @@ func (c *EventController) QueryEvents() {
 	}
 	response.Events, response.Count = models.GetAllEvents(page)
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) QueryEventsByTag() {
+	defer c.ServeJSON()
 	var response models.QueryEventsResponse
 	page, err := strconv.ParseInt(c.Input().Get("page"), 0, 64)
 	if err != nil {
@@ -60,10 +58,10 @@ func (c *EventController) QueryEventsByTag() {
 	log.Println(c.Ctx.Input.Param(":tag"))
 	response.Events, response.Count = models.GetEventsByTag(c.Ctx.Input.Param(":tag"), page)
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) GetEvent() {
+	defer c.ServeJSON()
 	var response models.GetEventResponse
 	authenticated := false
 	//time.Sleep(time.Second)
@@ -109,10 +107,10 @@ func (c *EventController) GetEvent() {
 	}
 
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *EventController) QueryUserEvents() {
+	defer c.ServeJSON()
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
 		log.Fatal(err)
@@ -120,10 +118,10 @@ func (c *EventController) QueryUserEvents() {
 	}
 	events := models.GetUserEvents(id)
 	c.Data["json"] = &events
-	c.ServeJSON()
 }
 
 func (c *EventController) QueryJoinedEvents() {
+	defer c.ServeJSON()
 	var user *models.User
 
 	// Check JSON Web Token
@@ -147,10 +145,10 @@ func (c *EventController) QueryJoinedEvents() {
 
 	// Send JSON response
 	c.Data["json"] = &events
-	c.ServeJSON()
 }
 
 func (c *EventController) AddEvent() {
+	defer c.ServeJSON()
 	var response models.AddEventResponse
 	response.Ok = false
 	var userId, eventId int64
@@ -197,7 +195,6 @@ func (c *EventController) AddEvent() {
 	if response.Errors != nil {
 		log.Println("Errors while singing up")
 		c.Data["json"] = &response
-		c.ServeJSON()
 		return
 	}
 
@@ -224,11 +221,11 @@ func (c *EventController) AddEvent() {
 
 	response.Ok = true
 	response.EventId = eventId
-	c.Data["json"] = response
-	c.ServeJSON()
+	c.Data["json"] = &response
 }
 
 func (c *EventController) EditEvent() {
+	defer c.ServeJSON()
 	var response models.AddEventResponse
 	response.Ok = false
 	var userId int64
@@ -310,11 +307,11 @@ func (c *EventController) EditEvent() {
 	}
 	response.Ok = true
 	response.EventId = request.Event.Id
-	c.Data["json"] = response
-	c.ServeJSON()
+	c.Data["json"] = &response
 }
 
 func (c *EventController) DeleteEvent() {
+	defer c.ServeJSON()
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
@@ -356,6 +353,7 @@ func (c *EventController) DeleteEvent() {
 }
 
 func (c *EventController) JoinEvent() {
+	defer c.ServeJSON()
 	var eventId int64
 	var user *models.User
 	volunteer := false
@@ -417,13 +415,13 @@ func (c *EventController) JoinEvent() {
 	// Sending successful response
 	if volunteer == true {
 		c.Data["json"] = models.JoinEventVolunteerResponse{Ok: true, HasForm: hasForm, OrganizerId: event.Organizer.Id}
-		c.ServeJSON()
 	} else {
 		c.sendSuccess()
 	}
 }
 
 func (c *EventController) DenyEvent() {
+	defer c.ServeJSON()
 	var eventId, userId int64
 
 	eventId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)

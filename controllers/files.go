@@ -181,7 +181,6 @@ func (c *FileController) AddCover() {
 }
 
 func (c *FileController) EditCover() {
-
 	defer c.ServeJSON()
 	var eventId, userId int64
 

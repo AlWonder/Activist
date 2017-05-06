@@ -16,7 +16,6 @@ func (c *TagController) sendError(message string, code float64) {
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *TagController) sendErrorWithStatus(message string, code float64, status int) {
@@ -25,19 +24,17 @@ func (c *TagController) sendErrorWithStatus(message string, code float64, status
 	response.Ok = false
 	response.Error = &models.Error{ UserMessage: message, Code: code }
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *TagController) sendSuccess() {
 	var response models.DefaultResponse
 	response.Ok = true
 	c.Data["json"] = &response
-	c.ServeJSON()
 }
 
 func (c *TagController) QueryTags() {
+	defer c.ServeJSON()
 	tag := c.Input().Get("query")
 	tags := models.GetTags(tag)
 	c.Data["json"] = &tags
-	c.ServeJSON()
 }
