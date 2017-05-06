@@ -1,7 +1,7 @@
 package models
 
 type Error struct {
-	UserMessage string  `json:"userMessage"`
+	UserMessage string  `json:"message"`
 	Code        float64 `json:"code"`
 }
 
@@ -85,8 +85,15 @@ type JoinedUser struct {
 }
 
 type GenerateTemplateTokenResponse struct {
-	Ok    bool   `json:"ok"`
-	Token string `json:"token"`
+	Ok       bool          `json:"ok"`
+	Template *FormTemplate `json:"template"`
+	Token    string        `json:"token"`
+}
+
+type GenerateFormTokenResponse struct {
+	Ok    bool      `json:"ok"`
+	Form  *FormUser `json:"form"`
+	Token string    `json:"token"`
 }
 
 func AppendError(errors *[]Error, message string, code float64) {

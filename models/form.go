@@ -27,6 +27,29 @@ func GetUserFormTemplates(userId int64) *[]FormTemplate {
 	return &templates
 }
 
+func GetUserForms(userId int64) *[]FormUser {
+	var forms []FormUser
+	o := orm.NewOrm()
+	if _, err := o.Raw("SELECT * FROM forms_users WHERE participant_id = ?", userId).QueryRows(&forms); err != nil {
+		return nil
+	}
+	return &forms
+}
+
+func GetFormById(formId int64) *FormUser {
+	var form FormUser
+
+	o := orm.NewOrm()
+	err := o.Raw(`SELECT *
+		FROM forms_users
+		WHERE id = ?`, formId).QueryRow(&form)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &form
+}
+
 func GetFormIdByOrgId(orgId int64) (int64, bool) {
 	o := orm.NewOrm()
 	var formId int64
@@ -61,6 +84,34 @@ func AddVolunteerForm(userId, tplId int64, path string) bool {
 	return true
 }
 
+func GetTemplateById(tplId int64) *FormTemplate {
+	var tpl FormTemplate
+
+	o := orm.NewOrm()
+	err := o.Raw(`SELECT *
+		FROM form_templates
+		WHERE id = ?`, tplId).QueryRow(&tpl)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &tpl
+}
+
+func GetTemplateByOrgAndName(orgId int64, path string) *FormTemplate {
+	var tpl FormTemplate
+
+	o := orm.NewOrm()
+	err := o.Raw(`SELECT *
+		FROM form_templates
+		WHERE organizer_id = ? AND template_path = ?`, orgId, path).QueryRow(&tpl)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &tpl
+}
+
 func GetFormUser(prtId, tplId int64) *FormUser {
 	var form FormUser
 
@@ -89,6 +140,20 @@ func GetFormUserById(formId int64) *FormUser {
 	return &form
 }
 
+func GetFormByPrtAndName(prtId int64, path string) *FormUser {
+	var form FormUser
+
+	o := orm.NewOrm()
+	err := o.Raw(`SELECT *
+		FROM forms_users
+		WHERE participant_id = ? AND path = ?`, prtId, path).QueryRow(&form)
+	if err != nil {
+		log.Println(err)
+		return nil
+	}
+	return &form
+}
+
 func IsAllowedToDownloadForm(userId, formId int64) bool {
 	var form FormUser
 	o := orm.NewOrm()
@@ -100,6 +165,15 @@ func IsAllowedToDownloadForm(userId, formId int64) bool {
 		return false
 	} else if err == orm.ErrMissPK {
 		log.Println("No primary key found.")
+		return false
+	}
+	return true
+}
+
+func DeleteForm(form *FormUser) bool {
+	o := orm.NewOrm()
+	if _, err := o.Delete(form); err != nil {
+		log.Println(err)
 		return false
 	}
 	return true

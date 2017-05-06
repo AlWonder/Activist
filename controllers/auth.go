@@ -192,11 +192,13 @@ func generateToken(userId int64) string {
 	return tokenString
 }
 
-func generateFileToken(userId int64, tokenType string) string {
+// User, file id and file type (form, template etc.) in parameters
+func generateFileToken(userId, fId int64, tokenType string) string {
 	// Filling the payload
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"iss": "activist",
 		"sub": userId,
+		"fid": fId,
 		"typ": tokenType,
 		"exp": time.Now().Unix() + 300,
 	})

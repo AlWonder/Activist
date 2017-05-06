@@ -9,7 +9,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"log"
 	"strconv"
-	"time"
+	//"time"
 )
 
 type EventController struct {
@@ -66,7 +66,7 @@ func (c *EventController) QueryEventsByTag() {
 func (c *EventController) GetEvent() {
 	var response models.GetEventResponse
 	authenticated := false
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 
 	id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
@@ -124,26 +124,28 @@ func (c *EventController) QueryUserEvents() {
 }
 
 func (c *EventController) QueryJoinedEvents() {
-	var userId int64
-	if id, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64); err != nil {
-		log.Fatal(err)
-	} else {
-		userId = id
-	}
+	var user *models.User
 
+	// Check JSON Web Token
 	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		// If it's not valid, send 401 error
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
-		user := models.GetUserById(int64(payload["sub"].(float64)))
-		if user.Group == 1 && user.Id != userId {
-			c.sendErrorWithStatus("You're not allowed to do this", 403, 403)
-			return
-		}
+		user = models.GetUserById(int64(payload["sub"].(float64)))
 	}
 
-	events := models.GetJoinedEvents(userId)
+	// If user is not an participant, send 403 error
+	if user.Group != 1 {
+		c.sendErrorWithStatus("Вы не являетесь участником", 403, 403)
+		return
+	}
+
+	// Get joined events from the DB
+	events := models.GetJoinedEvents(user.Id)
+
+	// Send JSON response
 	c.Data["json"] = &events
 	c.ServeJSON()
 }
@@ -169,6 +171,7 @@ func (c *EventController) AddEvent() {
 	// Parse the request
 	var request models.AddEventRequest
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
+		log.Println(err)
 		c.sendErrorWithStatus("Bad request", 400, 400)
 		return
 	}
@@ -275,13 +278,13 @@ func (c *EventController) EditEvent() {
 	// Checking for having errors
 	if response.Errors != nil {
 		log.Println("Errors while editing an event")
-		c.Data["json"] = response
+		c.Data["json"] = &response
 		c.ServeJSON()
 		return
 	}
 
 	// Inserting an event into the database
-	if _, err := o.Update(&request.Event); err != nil {
+	if _, err := o.Update(&request.Event, "Title", "Description", "EventDate", "EventTime"); err != nil {
 		log.Println(err)
 		c.sendError("Couldn't edit an event", 14)
 		return
@@ -390,7 +393,7 @@ func (c *EventController) JoinEvent() {
 			return
 		}
 
-		if event.Volunteers == false {
+		if event.TemplateId == 0 {
 			c.sendErrorWithStatus("The event doesn't provide volunteers", 403, 403)
 			return
 		}
@@ -400,6 +403,10 @@ func (c *EventController) JoinEvent() {
 			return
 		}
 		hasForm = user.HasForm(formId)
+		if hasForm == false {
+			c.sendError("The user doesn't have a form", 1)
+			return
+		}
 	}
 
 	if ok = models.JoinEvent(user.Id, eventId, volunteer); !ok {

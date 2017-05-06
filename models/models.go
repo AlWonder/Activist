@@ -17,13 +17,6 @@ type Image struct {
 	Src     string `orm:"column(src);size(64)" json:"src,omitempty"`
 }
 
-type TagStatus struct {
-	Id     int64 `orm:"column(id)" json:"id"`
-	UserId int64 `orm:"column(user_id)" json:"userId,omitempty"`
-	TagId  int64 `orm:"column(tag_id)" json:"tagId,omitempty"`
-	Status bool  `orm:"column(status);default(0)" json:"status,omitempty"` //0 - hidden, 1 - favorite
-}
-
 type UserEvent struct {
 	Id          int64 `orm:"column(id)" json:"id"`
 	UserId      int64 `orm:"column(user_id)" json:"userId,omitempty"`
@@ -56,10 +49,6 @@ func (t *Tag) TableName() string {
 	return "tags"
 }
 
-func (t *TagStatus) TableName() string {
-	return "tags_status"
-}
-
 func (u *UserEvent) TableName() string {
 	return "users_events"
 }
@@ -71,7 +60,6 @@ func (u *UserGroup) TableName() string {
 func init() {
 	orm.RegisterModel(new(Event), new(EventTag), new(FormTemplate),
 		new(FormUser), new(Image), new(Tag),
-		new(TagStatus), new(User), new(UserEvent),
-		new(UserGroup))
+		new(User), new(UserEvent), new(UserGroup))
 	log.Println("Models loaded")
 }

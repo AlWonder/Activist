@@ -14,9 +14,8 @@ type MainController struct {
 }
 
 func (c *MainController) Get() {
-	c.Data["Website"] = "beego.me"
-	c.Data["Email"] = "astaxie@gmail.com"
-	c.TplName = "index.tpl"
+	c.sendErrorWithStatus("Page not found", 404, 404)
+	c.ServeJSON()
 }
 
 func (c *MainController) IndexPage() {
@@ -30,14 +29,25 @@ func (c *MainController) IndexPage() {
 
 func (c *MainController) GenerateTemplateToken() {
 
+	tplId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
 	if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
 		log.Println(err)
 		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
 		return
 	} else {
 		user := models.GetUserById(int64(payload["sub"].(float64)))
-		token := generateFileToken(user.Id, "tpl")
-		response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token }
+		token := generateFileToken(user.Id, tplId, "tpl")
+		tpl := models.GetTemplateById(tplId)
+		if tpl == nil {
+			c.sendErrorWithStatus("Template not found", 404, 404)
+			return
+		}
+		response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token, Template: tpl }
 		c.Data["json"] = &response
 		c.ServeJSON()
 	}
@@ -59,8 +69,13 @@ func (c *MainController) GenerateFormToken() {
 	} else {
 		user := models.GetUserById(int64(payload["sub"].(float64)))
 		if models.IsAllowedToDownloadForm(user.Id, formId) {
-			token := generateFileToken(user.Id, "form")
-			response := models.GenerateTemplateTokenResponse{ Ok: true, Token: token }
+			token := generateFileToken(user.Id, formId, "form")
+			form := models.GetFormUserById(formId)
+			if form == nil {
+				c.sendErrorWithStatus("Form not found", 404, 404)
+				return
+			}
+			response := models.GenerateFormTokenResponse{ Ok: true, Token: token, Form: form }
 			c.Data["json"] = &response
 		} else {
 			c.sendErrorWithStatus("Access denied", 403, 403)
@@ -74,28 +89,52 @@ func (c *MainController) GenerateFormToken() {
 // But I don't know how to do that another way, so I gotta fix it later.
 func (c *MainController) XAccelTemplate() {
 	defer c.ServeJSON()
-	log.Println(c.Input().Get("path"))
+
+	// Get organizer id and template name from the request
+	orgId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	path := c.Ctx.Input.Param(":name")
+
+
 	if payload, err := validateFileToken(c.Input().Get("token")); err != nil {
 		log.Println(err)
-		c.Ctx.Output.Header("X-Accel-Redirect", "/unauthorized")
+		c.Ctx.Output.Header("X-Accel-Redirect", "/")
 		return
 	} else {
-		if payload["typ"] != "tpl" {
+		tpl := models.GetTemplateByOrgAndName(orgId, path)
+		if tpl == nil {
+			log.Println("Template not found")
+			c.Ctx.Output.Header("X-Accel-Redirect", "/unauthorized")
+			return
+		}
+		// Check if the token was generated for that file
+		if payload["typ"] != "tpl" || int64(payload["fid"].(float64)) != tpl.Id {
+			log.Println("Wrong token")
 			c.Ctx.Output.Header("X-Accel-Redirect", "/forbidden")
 			return
 		}
 	}
-	//c.Ctx.Output.Header("X-Accel-Redirect", "/api/index")
-	c.Ctx.Output.Header("X-Accel-Redirect", "/api/storage/docs/tpl/" + c.Input().Get("path"))
+	c.Ctx.Output.Header("X-Accel-Redirect", "/api/storage/docs/tpl/" + strconv.Itoa(int(orgId)) + "/" + path)
 }
 
 func (c *MainController) XAccelForm() {
 	defer c.ServeJSON()
 	var userId int64
 	// Get form id from the :id param
-	formId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
+	prtId, err := strconv.ParseInt(c.Ctx.Input.Param(":id"), 0, 64)
 	if err != nil {
 		log.Fatal(err)
+		return
+	}
+	path := c.Ctx.Input.Param(":name")
+
+	form := models.GetFormByPrtAndName(prtId, path)
+	if form == nil {
+		log.Println("Form not found")
+		c.Ctx.Output.Header("X-Accel-Redirect", "/unauthorized")
 		return
 	}
 
@@ -116,15 +155,9 @@ func (c *MainController) XAccelForm() {
 	}
 
 	// Only form and template owners are allowed to download the file
-	if !models.IsAllowedToDownloadForm(userId, formId) {
+	if !models.IsAllowedToDownloadForm(userId, form.Id) {
 		c.Ctx.Output.Header("X-Accel-Redirect", "/forbidden")
 		return
-	}
-
-	form := models.GetFormUserById(formId)
-	if form == nil {
-		// It shouldn't fail here. But who knows.
-		log.Println("What the...")
 	}
 
 	c.Ctx.Output.Header("X-Accel-Redirect", "/api/storage/docs/form/" + strconv.Itoa(int(form.ParticipantId)) + "/" + form.Path)

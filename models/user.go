@@ -159,7 +159,7 @@ func (u *User) IsJoined(event int64) (bool, bool) {
 func (u *User) HasForm(tplId int64) bool {
   o := orm.NewOrm()
   formUser := FormUser{ ParticipantId: u.Id, TemplateId: tplId }
-  err := o.Read(&formUser, "participant_id", "form_id")
+  err := o.Read(&formUser, "participant_id", "template_id")
 
 	if err == orm.ErrNoRows {
 		log.Println("No result found.")

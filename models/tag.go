@@ -32,55 +32,6 @@ func GetTags(tag string) *[]string {
 	return &tags
 }
 
-func GetTagStatus(userId, tagId int64) *TagStatus {
-	var tagStatus TagStatus
-	o := orm.NewOrm()
-
-	err := o.Raw(`SELECT *
-		FROM tags_status
-		WHERE user_id = ? AND tag_id = ?`, userId, tagId).QueryRow(&tagStatus)
-	if err == orm.ErrNoRows {
-		log.Println("No result found.")
-		return nil
-	} else if err == orm.ErrMissPK {
-		log.Println("No primary key found.")
-		return nil
-	}
-	return &tagStatus
-}
-
-func AddTagStatus(name string, userId int64, status bool) int64 {
-	o := orm.NewOrm()
-	tagStatus := TagStatus{UserId: userId, Status: status}
-	if tag := GetTag(name); tag != nil {
-		tagStatus.TagId = tag.Id
-	} else {
-		return 0
-	}
-
-	if created, id, err := o.ReadOrCreate(&tagStatus, "UserId", "TagId", "Status"); err == nil {
-		if created {
-			log.Println("New Insert an object. Id:", id)
-		} else {
-			log.Println("Get an object. Id:", id)
-		}
-		return id
-	} else {
-		log.Println(err)
-		return 0
-	}
-}
-
-func DeleteTagStatus(tagId, userId int64) error {
-	o := orm.NewOrm()
-	if _, err := o.Raw(`DELETE
-			FROM tags_status
-			WHERE tag_id = ? AND user_id = ?`, tagId, userId).Exec(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func GetTag(name string) *Tag {
 	o := orm.NewOrm()
 	log.Println(name)

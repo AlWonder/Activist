@@ -16,7 +16,6 @@ type Event struct {
 	CreateDate   time.Time `orm:"column(create_date);auto_now_add;type(date)" json:"createDate,omitempty"`
 	EventDate    time.Time `orm:"column(event_date);type(date)" json:"eventDate,omitempty"`
 	EventTime    time.Time `orm:"column(event_time);type(datetime)" json:"eventTime,omitempty"`
-	Volunteers   bool      `orm:"column(volunteers);default(0)" json:"volunteers,omitempty"`
 	Cover        string    `orm:"column(cover);size(128)" json:"cover,omitempty"`
 	TemplateId   int64     `orm:"column(template_id)" json:"templateId,omitempty"`
 	Participants int64     `orm:"-" json:"participants"`
@@ -74,13 +73,14 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 			if id, ok := v.(float64); !ok {
 				return errors.New("Bad userId field")
 			} else {
-				e.Organizer.Id = int64(id)
+				org := User{ Id: int64(id) }
+				e.Organizer = &org
 			}
-		case "volunteers":
-			if vol, ok := v.(bool); !ok {
-				return errors.New("Bad volunteers field")
+		case "templateId":
+			if id, ok := v.(float64); !ok {
+				return errors.New("Bad templateId field")
 			} else {
-				e.Volunteers = vol
+				e.TemplateId = int64(id)
 			}
 		case "title":
 			if title, ok := v.(string); !ok {
@@ -95,7 +95,7 @@ func (e *Event) UnmarshalJSON(request []byte) (err error) {
 				e.Description = d
 			}
 		case "createDate":
-			if createDate, err := time.Parse(time.RFC3339, v.(string)); err != nil {
+			if createDate, err := time.Parse("2006-01-02", v.(string)); err != nil {
 				return err
 			} else {
 				e.CreateDate = createDate
@@ -216,6 +216,14 @@ func GetUserEvents(userId int64) *[]Event {
 	if _, err := o.Raw("SELECT * FROM events WHERE user_id = ? ORDER BY id DESC", userId).QueryRows(&events); err != nil {
 		return nil
 	}
+	for i, _ := range events {
+		if err := o.Raw(`SELECT count(*)
+				FROM users_events
+				WHERE event_id = ?`, events[i].Id).QueryRow(&events[i].Participants); err != nil {
+			log.Println("getJoinedEvents: ", err)
+		}
+	}
+
 	return &events
 }
 
@@ -398,4 +406,15 @@ func (e *Event) GetJoinedUsers(orgId int64) *[]JoinedUser {
 		}
 	}
 	return &joinedUsers
+}
+
+func UpdateCover(event *Event, path string) bool {
+	o := orm.NewOrm()
+	event.Cover = path
+
+	if _, err := o.Update(event); err != nil {
+		log.Println(err)
+		return false
+	}
+	return true
 }

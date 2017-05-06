@@ -53,3 +53,24 @@ func (c *FormController) QueryUserFormTemplates() {
 	c.Data["json"] = &templates
 	c.ServeJSON()
 }
+
+func (c *FormController) QueryUserForms() {
+  var userId int64
+
+  if payload, err := validateToken(c.Ctx.Input.Header("Authorization")); err != nil {
+		log.Println(err)
+		c.sendErrorWithStatus("Invalid token. Access denied", 401, 401)
+		return
+	} else {
+    user := models.GetUserById(int64(payload["sub"].(float64)))
+		if user.Group != 1 {
+			c.sendErrorWithStatus("You're not a participant", 403, 403)
+			return
+		}
+    userId = user.Id
+  }
+
+	forms := models.GetUserForms(userId)
+	c.Data["json"] = &forms
+	c.ServeJSON()
+}
