@@ -301,7 +301,7 @@ func (c *EventController) EditEvent() {
 	// Checking for having errors
 	if response.Errors != nil {
 		log.Println("Errors while editing tags")
-		c.Data["json"] = response
+		c.Data["json"] = &response
 		c.ServeJSON()
 		return
 	}

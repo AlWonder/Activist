@@ -106,7 +106,7 @@ func (c *AuthController) Login() {
 func (c *AuthController) SignUp() {
 	defer c.ServeJSON()
 	var request models.SignUpRequest
-	var response models.LoginResponse
+	var response models.DefaultResponse
 
 	if err := json.Unmarshal(c.Ctx.Input.RequestBody, &request); err != nil {
 		log.Println(err)
@@ -121,7 +121,6 @@ func (c *AuthController) SignUp() {
 	valid.Email(request.User.Email, "email")
 	valid.Required(request.User.Email, "email")
 	valid.Required(request.User.Password, "password")
-	valid.Required(request.User.Group, "group")
 	valid.Required(request.User.FirstName, "first_name")
 	valid.Required(request.User.SecondName, "second_name")
 	valid.Required(request.User.LastName, "last_name")
@@ -134,7 +133,7 @@ func (c *AuthController) SignUp() {
 
 	if valid.HasErrors() {
 		for _, err := range valid.Errors {
-			models.AppendError(&response.Errors, "Ошибка в поле "+err.Key+": "+err.Message, 400)
+			models.AppendError(response.Errors, "Ошибка в поле "+err.Key+": "+err.Message, 400)
 			log.Println("Error on " + err.Key)
 		}
 	}
@@ -152,26 +151,15 @@ func (c *AuthController) SignUp() {
 
 	request.User.Password = hex.EncodeToString(h.Hash) + hex.EncodeToString(h.Salt)
 
-	// Uploading an avatar
-	file, header, _ := c.GetFile("file") // where <<this>> is the controller and <<file>> the id of your form field
-    if file != nil {
-        // get the filename
-        fileName := header.Filename
-        // save to server
-        err := c.SaveToFile("file", "/static/user/" + fileName)
-				log.Println(err)
-    }
+	request.User.Group = 1
 
 	if _, err := o.Insert(&request.User); err != nil {
 		c.sendError("Couldn't sign up. The user probably already exists", 14)
 		log.Println(err)
-	} else {
-		// Generating a token and sending it to a client
-		token := generateToken(request.User.Id)
-		response.IdToken = token
+		return
 	}
 
-	c.Data["json"] = &response
+	c.sendSuccess()
 }
 
 func generateToken(userId int64) string {

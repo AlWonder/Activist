@@ -23,7 +23,3 @@ type JoinEventRequest struct {
 type SignUpRequest struct {
 	User User `json:"user"`
 }
-
-type AddFavHideTagRequest struct {
-	Status bool `json:"status"`
-}
